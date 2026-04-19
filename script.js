@@ -1,34 +1,19 @@
-let mapSharp, mapBlur, marker, synth;
+let map, marker, synth;
 let isAudioActive = false;
 
 function init() {
-    const startPos = [41.8245, -71.4128];
-    const mapOptions = { zoomControl: false, attributionControl: false };
-
-    // 1. Initialize both maps
-    mapSharp = L.map('map-sharp', mapOptions).setView(startPos, 15);
-    mapBlur = L.map('map-blur', mapOptions).setView(startPos, 15);
-
-    const tilesUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
-    L.tileLayer(tilesUrl).addTo(mapSharp);
-    L.tileLayer(tilesUrl).addTo(mapBlur);
-
-    // 2. Sync Map Movements (If one moves, both move)
-    mapSharp.on('move', () => {
-        mapBlur.setView(mapSharp.getCenter(), mapSharp.getZoom(), { animate: false });
-    });
+    // 1. Setup Map
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const slider = document.getElementById('radius-slider');
     const display = document.getElementById('radius-display');
-    const blurMapDiv = document.getElementById('map-blur');
+    const frost = document.getElementById('frost-layer');
 
-    // 3. Add the Marker to the SHARP map (Z-index 1000 pane)
-    marker = L.marker(startPos, { 
-        draggable: true,
-        zIndexOffset: 1000 
-    }).addTo(mapSharp);
+    // 2. Add Marker (Put it in the markerPane so it stays on top)
+    marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
-    function syncLens() {
+    function syncProbe() {
         const radiusMeters = parseInt(slider.value);
         const markerLatLng = marker.getLatLng();
         
@@ -36,29 +21,30 @@ function init() {
         display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1) + "km" : radiusMeters + "m";
 
         // Calculate Pixel Radius
-        const centerPoint = mapSharp.latLngToContainerPoint(markerLatLng);
-        const edgeLatLng = L.latLng(markerLatLng.lat, markerLatLng.lng + 0.005);
-        const edgePoint = mapSharp.latLngToContainerPoint(edgeLatLng);
-        const pixelsPerDegree = Math.abs(edgePoint.x - centerPoint.x);
-        const metersPerDegree = markerLatLng.distanceTo(edgeLatLng);
-        const pixelRadius = (radiusMeters / metersPerDegree) * pixelsPerDegree;
+        const centerPoint = map.latLngToContainerPoint(markerLatLng);
+        
+        // Calculate dynamic pixels-per-meter at current zoom
+        const lat = markerLatLng.lat;
+        const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+        const pixelRadius = radiusMeters / metersPerPixel;
 
-        // THE PUNCH-HOLE:
-        // We make the blurry map TRANSPARENT inside the radius.
-        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, transparent 99%, black 100%)`;
-        blurMapDiv.style.webkitMaskImage = mask;
-        blurMapDiv.style.maskImage = mask;
+        // Apply Mask to the Frost Layer
+        // We use a Hard Stop (99% to 100%) for a clean edge
+        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, black 99%, transparent 100%)`;
+        
+        frost.style.webkitMaskImage = mask;
+        frost.style.maskImage = mask;
     }
 
-    // 4. Interaction Events
-    slider.oninput = syncLens;
-    mapSharp.on('zoom move', syncLens);
-    marker.on('drag', syncLens);
+    // 3. Listeners
+    slider.oninput = syncProbe;
+    map.on('zoom move', syncProbe);
+    marker.on('drag', syncProbe);
 
-    // Force initial render
-    setTimeout(syncLens, 200);
+    // Initial render
+    setTimeout(syncProbe, 100);
 
-    // 5. Audio & Elevation
+    // 4. Audio & Elevation
     document.getElementById('start-btn').onclick = async () => {
         await Tone.start();
         synth = new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination();
@@ -73,7 +59,7 @@ function init() {
             const data = await res.json();
             const ele = Math.round(data.results[0].elevation);
             if (isAudioActive && synth) synth.triggerAttackRelease(140 + ele, "1n");
-        } catch(err) { console.warn("API Delay"); }
+        } catch(err) { console.warn("API throttle"); }
     });
 }
 
