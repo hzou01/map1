@@ -1,9 +1,9 @@
-let map, marker, chimePoly, natureBase, waterTexture, bitCrusher, drone;
+let map, marker, chimePoly, natureBase, waterTexture, bitCrusher;
 let isAudioActive = false;
 let ratios = { green: 0.3, gray: 0.5, blue: 0.2 }; 
 
-const URBAN_SCALE = ["C5", "D5", "Eb5", "G5", "Ab5", "C6", "D6"]; 
-const NATURE_SCALE = ["C2", "Eb2", "G2"]; // Deep, soothing bass
+const URBAN_SCALE = ["C4", "Eb4", "G4", "Bb4", "C5", "Eb5"]; // Back to musical mid-highs
+const NATURE_SCALE = ["C2", "G2", "Bb2"]; // Deep, soothing anchors
 
 function init() {
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
@@ -31,16 +31,13 @@ function init() {
     function updateAudioParams() {
         if (!isAudioActive) return;
 
-        // URBAN: BitCrush intensity and Tempo
+        // URBAN: BitCrush grit (subtle) and Tempo
         bitCrusher.bits.rampTo(1 + (7 * (1 - ratios.gray)), 0.5); 
-        const tempo = Math.max(50, 100 + (ratios.gray * 120)); // NYC speeds (up to 220bpm)
+        const tempo = 80 + (ratios.gray * 100); 
         Tone.Transport.bpm.rampTo(tempo, 1);
 
-        // NATURE: Bass Volume & Depth
-        natureBase.volume.rampTo(-40 + (ratios.green * 30), 1);
-
-        // WATER: Cloudiness (Filter + Noise)
-        const waterCloud = -50 + (ratios.blue * 40);
+        // WATER: The "Cloudy" texture
+        const waterCloud = -50 + (ratios.blue * 35);
         waterTexture.volume.rampTo(waterCloud, 1);
     }
 
@@ -48,43 +45,43 @@ function init() {
         try {
             await Tone.start();
 
-            // 1. URBAN LAYER: High Jitter + Grit
+            // 1. URBAN LAYER: Clean FM Chimes with BitCrusher
             bitCrusher = new Tone.BitCrusher(8).toDestination();
-            chimePoly = new Tone.PolySynth(Tone.FMSynth).connect(bitCrusher);
-            chimePoly.set({ 
-                harmonicity: 3.5, 
-                envelope: { attack: 0.001, release: 0.1 } 
-            });
+            chimePoly = new Tone.PolySynth(Tone.FMSynth, {
+                harmonicity: 2,
+                modulationIndex: 10,
+                envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 1.2 }
+            }).connect(bitCrusher);
 
-            // 2. NATURE LAYER: The Low Soothe (Deep Sine Base)
+            // 2. NATURE LAYER: The "Soothing Medium Tonal Base"
+            // Using a thick triangle wave for that "warm" earth feeling
             natureBase = new Tone.PolySynth(Tone.Synth, {
                 oscillator: { type: "triangle" },
-                envelope: { attack: 2, decay: 2, sustain: 1, release: 5 }
+                envelope: { attack: 1.5, decay: 2, sustain: 0.8, release: 4 }
             }).toDestination();
-            natureBase.volume.value = -40;
 
-            // 3. WATER LAYER: The Cloud (Noise + AutoFilter for texture)
+            // 3. WATER LAYER: The "Cloud" (Hiss/Wash)
             const waterFilter = new Tone.AutoFilter("1n").toDestination().start();
-            waterTexture = new Tone.Noise("white").connect(waterFilter);
+            waterTexture = new Tone.Noise("pink").connect(waterFilter);
             waterTexture.volume.value = -50;
             waterTexture.start();
 
-            // THE GENERATIVE SCORE
+            // GENERATIVE LOOP
             new Tone.Loop(time => {
-                // High-Speed Urban Scatter (16th notes)
-                if (Math.random() < (0.05 + ratios.gray * 0.9)) {
+                // Urban Chimes (Gray) - Back to the melodic style
+                if (Math.random() < (0.1 + ratios.gray * 0.7)) {
                     const note = URBAN_SCALE[Math.floor(Math.random() * URBAN_SCALE.length)];
-                    chimePoly.triggerAttackRelease(note, "64n", time);
+                    chimePoly.triggerAttackRelease(note, "16n", time);
                 }
 
-                // Nature "Breathe" (Only every 2 measures)
-                if (Tone.Transport.getTicksAtTime(time) % (Tone.Ticks("1n").toNumber() * 2) === 0) {
-                    if (Math.random() < ratios.green) {
+                // Nature Base (Green) - Triggered every 4 beats for a slow "pulse"
+                if (Tone.Transport.getTicksAtTime(time) % (Tone.Ticks("1n").toNumber()) === 0) {
+                    if (Math.random() < (0.2 + ratios.green)) {
                         const note = NATURE_SCALE[Math.floor(Math.random() * NATURE_SCALE.length)];
                         natureBase.triggerAttackRelease(note, "1n", time);
                     }
                 }
-            }, "16n").start(0);
+            }, "8n").start(0);
 
             Tone.Transport.start();
             startBtn.innerText = "PROBE ACTIVE";
