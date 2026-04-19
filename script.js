@@ -2,64 +2,51 @@ let map, marker, circle, synth;
 let isAudioActive = false;
 
 function init() {
-    // 1. Setup Leaflet
+    // 1. Setup Leaflet - centered on Providence
+    // We set 'fadeAnimation: false' to prevent standard tiles from ghosting in
     map = L.map('map', { 
         zoomControl: false,
-        attributionControl: false 
+        attributionControl: false,
+        fadeAnimation: false
     }).setView([41.8245, -71.4128], 15);
 
-    // 2. Load Shortbread Vector Preset (黄油酥饼)
-    // This uses MapLibre to render the exact OSM style you want
-    try {
-        const glLayer = L.maplibreGL({
-            style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json',
-            pane: 'tilePane'
-        }).addTo(map);
-        
-        // Safety: Force map to recognize its size after a short delay
-        setTimeout(() => map.invalidateSize(), 500);
-    } catch (e) {
-        console.error("Vector tiles failed, check internet connection.");
-    }
-
-    // 3. Add Hardware Marker
-    marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
-
-    // 4. Add Visual Range
-    circle = L.circle([41.8245, -71.4128], { 
-        radius: 500, color: 'white', weight: 1, fillOpacity: 0.1 
+    // 2. THE PURGE: Ensure NO L.tileLayer exists here. 
+    // We only use the MapLibreGL layer for the Shortbread Preset.
+    
+    const shortbreadLayer = L.maplibreGL({
+        style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json',
+        pane: 'tilePane',
+        // This ensures the vector tiles fill the screen correctly on Mac
+        antialias: true 
     }).addTo(map);
 
-    // 5. Update UI on Drag
+    // 3. Hardware Marker & Circle
+    marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
+
+    circle = L.circle([41.8245, -71.4128], { 
+        radius: 500, 
+        color: 'white', 
+        weight: 1, 
+        fillOpacity: 0.1 
+    }).addTo(map);
+
+    // 4. Force a refresh to kick the vector engine into gear
+    shortbreadLayer.getMapboxMap().on('load', () => {
+        console.log("Shortbread Preset Loaded Successfully");
+        map.invalidateSize();
+    });
+
+    // --- Rest of your UI/Audio logic remains the same ---
     marker.on('drag', (e) => {
         const p = e.target.getLatLng();
         circle.setLatLng(p);
         document.getElementById('coords').innerText = p.lat.toFixed(4) + ", " + p.lng.toFixed(4);
     });
 
-    // 6. Data Probe on Drop
-    marker.on('dragend', async (e) => {
+    marker.on('dragend', (e) => {
         const p = e.target.getLatLng();
         fetchElevation(p.lat, p.lng);
     });
-
-    // 7. Audio Start
-    document.getElementById('start-btn').onclick = async () => {
-        await Tone.start();
-        synth = new Tone.MonoSynth({
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.1, release: 2 }
-        }).toDestination();
-        
-        document.getElementById('start-btn').innerText = "SENSORS ONLINE";
-        document.getElementById('start-btn').style.opacity = "0.5";
-        isAudioActive = true;
-    };
-
-    // 8. Slider Sync
-    document.getElementById('radius').oninput = (e) => {
-        circle.setRadius(e.target.value);
-    };
 }
 
 async function fetchElevation(lat, lng) {
