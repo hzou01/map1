@@ -1,51 +1,64 @@
-let map, marker, synth;
+let mapSharp, mapBlur, marker, synth;
 let isAudioActive = false;
 
 function init() {
-    // 1. Setup Map
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const startPos = [41.8245, -71.4128];
+    const mapOptions = { zoomControl: false, attributionControl: false };
+
+    // 1. Initialize both maps
+    mapSharp = L.map('map-sharp', mapOptions).setView(startPos, 15);
+    mapBlur = L.map('map-blur', mapOptions).setView(startPos, 15);
+
+    const tilesUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    L.tileLayer(tilesUrl).addTo(mapSharp);
+    L.tileLayer(tilesUrl).addTo(mapBlur);
+
+    // 2. Sync Map Movements (If one moves, both move)
+    mapSharp.on('move', () => {
+        mapBlur.setView(mapSharp.getCenter(), mapSharp.getZoom(), { animate: false });
+    });
 
     const slider = document.getElementById('radius-slider');
     const display = document.getElementById('radius-display');
-    const frost = document.getElementById('frost-layer');
+    const blurMapDiv = document.getElementById('map-blur');
 
-    // 2. Add Marker (Put it in the markerPane so it stays on top)
-    marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
+    // 3. Add the Marker to the SHARP map (Z-index 1000 pane)
+    marker = L.marker(startPos, { 
+        draggable: true,
+        zIndexOffset: 1000 
+    }).addTo(mapSharp);
 
-    function syncProbe() {
-    const radiusMeters = parseInt(slider.value);
-    const markerLatLng = marker.getLatLng();
-    
-    display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1) + "km" : radiusMeters + "m";
+    function syncLens() {
+        const radiusMeters = parseInt(slider.value);
+        const markerLatLng = marker.getLatLng();
+        
+        // Update Text
+        display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1) + "km" : radiusMeters + "m";
 
-    const centerPoint = map.latLngToContainerPoint(markerLatLng);
-    
-    const lat = markerLatLng.lat;
-    const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom());
-    const pixelRadius = radiusMeters / metersPerPixel;
+        // Calculate Pixel Radius
+        const centerPoint = mapSharp.latLngToContainerPoint(markerLatLng);
+        const edgeLatLng = L.latLng(markerLatLng.lat, markerLatLng.lng + 0.005);
+        const edgePoint = mapSharp.latLngToContainerPoint(edgeLatLng);
+        const pixelsPerDegree = Math.abs(edgePoint.x - centerPoint.x);
+        const metersPerDegree = markerLatLng.distanceTo(edgeLatLng);
+        const pixelRadius = (radiusMeters / metersPerDegree) * pixelsPerDegree;
 
-    /**
-     * THE STABLE MASK:
-     * transparent 0 to pixelRadius (CLEAR HOLE)
-     * black from pixelRadius onwards (BLURRY OUTSIDE)
-     * We add 50 to the x and y because of our -50px overscan in CSS
-     */
-    const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x + 50}px ${centerPoint.y + 50}px, transparent 99%, black 100%)`;
-    
-    frost.style.webkitMaskImage = mask;
-    frost.style.maskImage = mask;
-}
+        // THE PUNCH-HOLE:
+        // We make the blurry map TRANSPARENT inside the radius.
+        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, transparent 99%, black 100%)`;
+        blurMapDiv.style.webkitMaskImage = mask;
+        blurMapDiv.style.maskImage = mask;
+    }
 
-    // 3. Listeners
-    slider.oninput = syncProbe;
-    map.on('zoom move', syncProbe);
-    marker.on('drag', syncProbe);
+    // 4. Interaction Events
+    slider.oninput = syncLens;
+    mapSharp.on('zoom move', syncLens);
+    marker.on('drag', syncLens);
 
-    // Initial render
-    setTimeout(syncProbe, 100);
+    // Force initial render
+    setTimeout(syncLens, 200);
 
-    // 4. Audio & Elevation
+    // 5. Audio & Elevation
     document.getElementById('start-btn').onclick = async () => {
         await Tone.start();
         synth = new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination();
@@ -60,7 +73,7 @@ function init() {
             const data = await res.json();
             const ele = Math.round(data.results[0].elevation);
             if (isAudioActive && synth) synth.triggerAttackRelease(140 + ele, "1n");
-        } catch(err) { console.warn("API throttle"); }
+        } catch(err) { console.warn("API Delay"); }
     });
 }
 
