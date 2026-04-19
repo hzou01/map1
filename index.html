@@ -2,92 +2,93 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>URBAN PROBE | Final Build</title>
+    <title>URBAN PROBE | Native Shortbread</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #222; overflow: hidden; }
-        
-        /* The Map Container - if the map fails, you will see a dark gray background */
-        #map { 
-            position: absolute; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            background: #333; 
-            z-index: 1;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #f0f0f0; }
+        #map { position: absolute; width: 100vw; height: 100vh; z-index: 1; }
 
-        /* UI Panel */
+        /* Industrial UI */
         #ui {
-            position: absolute; top: 20px; left: 20px; z-index: 10;
-            width: 240px; padding: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            border-radius: 8px;
-            font-family: monospace;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            position: absolute; top: 30px; left: 30px; z-index: 10;
+            width: 260px; padding: 25px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            font-family: sans-serif;
         }
 
-        button { width: 100%; margin-top: 10px; padding: 10px; cursor: pointer; font-weight: bold; }
+        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
+        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; }
+        .label { font-size: 9px; opacity: 0.4; text-transform: uppercase; font-weight: bold; }
+        button { width: 100%; padding: 12px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; margin-top: 15px;}
     </style>
 </head>
 <body>
 
-<div id="map"></div>
+    <div id="map"></div>
 
-<div id="ui">
-    <h2 style="margin:0 0 10px 0; font-size: 14px;">PROBE v1.0</h2>
-    <div id="status">INIT...</div>
-    <div id="coords" style="margin-top:10px; font-size: 11px;">--</div>
-    <button id="audio-btn">START AUDIO</button>
-</div>
+    <div id="ui">
+        <h1>Urban Probe Sensor</h1>
+        <div class="stat"><span class="label">Pos:</span> <span id="coords">DRAG PIN</span></div>
+        <div class="stat"><span class="label">Elev:</span> <span id="ele">-- m</span></div>
+        <button id="start-btn">INITIALIZE AUDIO</button>
+    </div>
 
-<script>
-    // 1. Initialize Map with Error Catching
-    try {
+    <script>
+        let synth;
+        let isAudioOn = false;
+
+        // 1. Initialize the Actual Shortbread Layer Natively
         const map = new maplibregl.Map({
             container: 'map',
-            // Using a different Shortbread Stylesheet mirror
-            style: 'https://demotiles.maplibre.org/style.json', 
-            center: [-71.412, 41.824],
-            zoom: 13
+            style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json', // Official Shortbread Style
+            center: [-71.4128, 41.8245], // Note: MapLibre uses [Lng, Lat]
+            zoom: 14
         });
 
-        const marker = new maplibregl.Marker({ draggable: true, color: 'red' })
-            .setLngLat([-71.412, 41.824])
-            .addTo(map);
+        // 2. Add the Interactive Probe (Marker)
+        const marker = new maplibregl.Marker({
+            draggable: true,
+            color: "#000000"
+        })
+        .setLngLat([-71.4128, 41.8245])
+        .addTo(map);
 
-        map.on('load', () => {
-            document.getElementById('status').innerText = "MAP ACTIVE";
-            // Once loaded, we "inject" the Shortbread layers if possible
-            map.setStyle('https://tiles.shortbread-tiles.org/styles/shortbread-light.json');
-        });
+        // 3. Update UI and Audio on Drag
+        function onDragEnd() {
+            const lngLat = marker.getLngLat();
+            document.getElementById('coords').innerText = `${lngLat.lat.toFixed(3)}, ${lngLat.lng.toFixed(3)}`;
+            
+            // Fetch Elevation
+            fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lngLat.lat},${lngLat.lng}`)
+                .then(res => res.json())
+                .then(data => {
+                    const val = data.results[0].elevation;
+                    document.getElementById('ele').innerText = Math.round(val) + "m";
+                    if (isAudioOn && synth) synth.triggerAttackRelease(200 + val, "2n");
+                });
+        }
 
-        marker.on('dragend', () => {
-            const ll = marker.getLngLat();
-            document.getElementById('coords').innerText = `LAT: ${ll.lat.toFixed(4)}\nLNG: ${ll.lng.toFixed(4)}`;
-            playTone(ll.lat);
-        });
+        marker.on('dragend', onDragEnd);
 
-    } catch (e) {
-        document.getElementById('status').innerText = "LOAD ERROR";
-        console.error(e);
-    }
-
-    // 2. Simple Tone Logic
-    let synth;
-    document.getElementById('audio-btn').onclick = async () => {
-        await Tone.start();
-        synth = new Tone.Synth().toDestination();
-        document.getElementById('audio-btn').innerText = "AUDIO READY";
-    };
-
-    function playTone(val) {
-        if(synth) synth.triggerAttackRelease(200 + (val * 2), "8n");
-    }
-</script>
-
+        // 4. Audio Engine
+        document.getElementById('start-btn').onclick = async () => {
+            await Tone.start();
+            synth = new Tone.MonoSynth({
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.1, release: 2 }
+            }).toDestination();
+            document.getElementById('start-btn').innerText = "ONLINE";
+            isAudioOn = true;
+        };
+    </script>
 </body>
 </html>
