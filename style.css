@@ -1,93 +1,121 @@
-/* 1. Reset & Typography */
-body, html {
-    margin: 0; padding: 0;
-    width: 100vw; height: 100vh;
-    overflow: hidden;
-    background: #0a0a0a;
-    font-family: 'Google Sans', sans-serif;
-    color: white;
+/* 1. Global Reset */
+body, html { 
+    margin: 0; 
+    padding: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    background: #e0e0e0; /* Matches the map for a seamless look */
+    overflow: hidden; 
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
 }
 
-/* 2. The Map with Nature-Isolation Filter */
-#map {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-    z-index: 1;
-    background: #0a0a0a;
+/* 2. Map Container */
+#map { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    z-index: 1; 
+    background: #d4d4d4; 
 }
 
-/* This filter turns roads/buildings gray/black 
-   but lets Green and Blue hues punch through */
+/* 3. The "Designer Blueprint" Filter 
+   This makes the city look like a technical drawing.
+   - Grayscale(1) removes the clutter.
+   - Brightness(1.1) keeps it from being too dark.
+   - Contrast(0.8) softens the roads.
+   - Sepia(0.2) gives it a slight architectural 'warmth'. */
 .leaflet-tile-container {
-    filter: brightness(0.6) contrast(1.3) saturate(0.2) grayscale(0.6);
-    transition: filter 0.5s ease;
+    filter: grayscale(1) brightness(1.1) contrast(0.8) sepia(0.1);
 }
 
-/* 3. The "Liquid Glass" UI Layer */
-#ui-layer {
-    position: absolute;
-    top: 30px; left: 30px;
-    z-index: 100;
-    width: 280px;
-    padding: 25px;
-    background: rgba(25, 25, 25, 0.4);
-    backdrop-filter: blur(20px) saturate(150%);
-    -webkit-backdrop-filter: blur(20px) saturate(150%);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    box-shadow: 0 10px 50px rgba(0,0,0,0.8);
-    pointer-events: auto;
+/* 4. Industrial 'Frosted Glass' UI */
+#ui {
+    position: absolute; 
+    top: 30px; 
+    left: 30px; 
+    z-index: 1000;
+    width: 280px; 
+    padding: 24px;
+    
+    /* Frosted Glass Effect */
+    background: rgba(255, 255, 255, 0.7); 
+    backdrop-filter: blur(15px) saturate(160%);
+    -webkit-backdrop-filter: blur(15px);
+    
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 16px;
+    color: #1a1a1a;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
-h1 {
-    font-size: 10px;
-    letter-spacing: 3px;
-    margin: 0 0 20px 0;
-    opacity: 0.6;
-    text-transform: uppercase;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
-    padding-bottom: 10px;
-}
-
-.data-row {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    font-family: 'Courier New', monospace;
-    font-size: 13px;
-}
-
-.label {
-    font-family: 'Google Sans', sans-serif;
-    font-size: 10px;
-    opacity: 0.4;
-    text-transform: uppercase;
-}
-
-/* 4. Controls */
-input[type=range] {
-    width: 100%;
-    margin-top: 20px;
-    cursor: pointer;
-}
-
-button {
-    width: 100%;
-    padding: 14px;
-    margin-top: 25px;
-    border-radius: 10px;
-    border: none;
-    background: #fff;
+/* 5. Typography & Data Layout */
+h1 { 
+    font-size: 11px; 
+    font-weight: 700; 
+    letter-spacing: 2px; 
+    margin: 0 0 20px 0; 
+    text-transform: uppercase; 
     color: #000;
-    font-weight: 900;
-    font-size: 12px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
+    opacity: 0.7;
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding-bottom: 8px;
+}
+
+.stat-row { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center;
+    margin-bottom: 12px; 
+}
+
+.label { 
+    font-size: 9px; 
+    font-weight: 600; 
+    opacity: 0.4; 
+    text-transform: uppercase; 
+}
+
+#coords, #ele { 
+    font-family: 'SF Mono', 'Courier New', monospace; 
+    font-size: 14px; 
+    color: #000; 
+}
+
+/* 6. Interaction Controls */
+input[type=range] { 
+    width: 100%; 
+    margin-top: 15px; 
+    accent-color: #000; 
     cursor: pointer;
 }
 
-button:active { transform: scale(0.97); }
+button { 
+    width: 100%; 
+    padding: 14px; 
+    background: #000; 
+    color: #fff; 
+    border: none; 
+    font-weight: 700; 
+    font-size: 11px; 
+    letter-spacing: 1px;
+    text-transform: uppercase; 
+    cursor: pointer; 
+    border-radius: 8px; 
+    margin-top: 25px;
+    transition: background 0.2s ease, transform 0.1s;
+}
 
-/* Hide Leaflet Bloat */
-.leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
+button:hover {
+    background: #333;
+}
+
+button:active { 
+    transform: scale(0.98); 
+}
+
+/* 7. Leaflet UI Cleanup */
+.leaflet-bar, .leaflet-control-attribution { 
+    display: none !important; 
+}
