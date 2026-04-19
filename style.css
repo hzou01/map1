@@ -10,32 +10,32 @@ body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
     position: absolute;
     top: 0; left: 0;
     width: 100vw; height: 100vh;
-    z-index: 10; /* Sits between map (1) and UI (1000) */
+    z-index: 5; /* Sit above map, but below marker pane */
     pointer-events: none;
     
     background-color: rgba(255, 255, 255, 0.4); 
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
 
-    /* The Mask Logic: Define a circle that will be 'cut out' */
-    mask-image: radial-gradient(circle, black 100%, transparent 100%);
-    -webkit-mask-image: radial-gradient(circle, black 100%, transparent 100%);
-    
-    /* SUBTRACT the circle from the background */
-    mask-composite: exclude;
-    -webkit-mask-composite: destination-out;
+    /* NEW MASK LOGIC: 
+       Everything from 0 to 'pixelRadius' is TRANSPARENT (Clear).
+       Everything after that is BLACK (Show Blur). 
+    */
+    mask-image: radial-gradient(circle, transparent 100%, black 100%);
+    -webkit-mask-image: radial-gradient(circle, transparent 100%, black 100%);
 }
 
 #ui {
     position: absolute; 
     top: 25px; left: 25px; 
-    z-index: 1000;
+    z-index: 1000; /* Ensure UI is always on top */
     width: 270px; padding: 25px;
     background: rgba(255, 255, 255, 0.85); 
     backdrop-filter: blur(20px);
     border: 1px solid rgba(0, 0, 0, 0.05);
     border-radius: 18px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    color: #1a1a1a;
     font-family: -apple-system, sans-serif;
 }
 
