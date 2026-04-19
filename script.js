@@ -21,23 +21,25 @@ function init() {
 
     const centerPoint = map.latLngToContainerPoint(markerLatLng);
     
-    // Precise meter-to-pixel conversion
+    // Meter to Pixel Conversion
     const lat = markerLatLng.lat;
     const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom());
     const pixelRadius = radiusMeters / metersPerPixel;
 
     /**
-     * THE STABLE "CLEAR CENTER" LOGIC:
-     * We make it 100% transparent from the center to the edge of the radius.
-     * Then we make it solid black for the rest of the screen.
+     * THE STABLE CLIP-PATH:
+     * We calculate the position relative to the frost-layer (which is shifted by -100px)
      */
-    const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, 
-                  transparent 0px, 
-                  transparent ${pixelRadius}px, 
-                  black ${pixelRadius + 1}px)`;
+    const holeX = centerPoint.x + 100;
+    const holeY = centerPoint.y + 100;
+
+    // Use setProperty to update the hole position and size
+    // We use 'evenodd' logic to tell the browser this is a cutout
+    frost.style.setProperty('--hole-path', `circle(${pixelRadius}px at ${holeX}px ${holeY}px)`);
     
-    frost.style.webkitMaskImage = mask;
-    frost.style.maskImage = mask;
+    // Standardizing the clip-path for cross-browser support
+    frost.style.clipPath = `path('M 0 0 H ${window.innerWidth + 200} V ${window.innerHeight + 200} H 0 Z M ${holeX} ${holeY} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0')`;
+    frost.style.webkitClipPath = frost.style.clipPath;
 }
 
     // 3. Listeners
