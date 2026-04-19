@@ -15,30 +15,37 @@ function init() {
     }).addTo(map);
 
     function syncLens() {
-        const radiusMeters = parseInt(slider.value);
-        const markerLatLng = marker.getLatLng();
-        
-        display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1)+"km" : radiusMeters+"m";
+    const slider = document.getElementById('radius-slider');
+    const display = document.getElementById('radius-display');
+    const radiusMeters = parseInt(slider.value);
+    const markerLatLng = marker.getLatLng();
+    
+    // Update Radius Text
+    display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1)+"km" : radiusMeters+"m";
 
-        const centerPoint = map.latLngToContainerPoint(markerLatLng);
-        
-        // Calculate pixel radius
-        const edgeLatLng = L.latLng(markerLatLng.lat, markerLatLng.lng + 0.01);
-        const edgePoint = map.latLngToContainerPoint(edgeLatLng);
-        const pixelsPerDegree = Math.abs(edgePoint.x - centerPoint.x);
-        const metersPerDegree = markerLatLng.distanceTo(edgeLatLng);
-        const pixelRadius = (radiusMeters / metersPerDegree) * pixelsPerDegree;
+    // Calculate the pixel radius based on current map zoom
+    const centerPoint = map.latLngToContainerPoint(markerLatLng);
+    const edgeLatLng = L.latLng(markerLatLng.lat, markerLatLng.lng + 0.01); 
+    const edgePoint = map.latLngToContainerPoint(edgeLatLng);
+    const pixelsPerDegree = Math.abs(edgePoint.x - centerPoint.x);
+    const metersPerDegree = markerLatLng.distanceTo(edgeLatLng);
+    const pixelRadius = (radiusMeters / metersPerDegree) * pixelsPerDegree;
 
-        // TARGET THE TILES:
-        // We find the element that holds the map tiles
-        const tiles = document.querySelector('.leaflet-tile-container');
-        if (tiles) {
-            // This mask says: "Hide the blur in the center (transparent), show it outside (black)"
-            const maskValue = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, transparent 100%, black 100%)`;
-            tiles.style.webkitMaskImage = maskValue;
-            tiles.style.maskImage = maskValue;
-        }
+    // Select the tile layer
+    const tiles = document.querySelector('.leaflet-tile-container');
+    
+    if (tiles) {
+        /**
+         * THE LOGIC:
+         * 0 to pixelRadius: transparent (This kills the blur in the center)
+         * pixelRadius to end: black (This allows the blur to show outside)
+         */
+        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, transparent 99%, black 100%)`;
+        
+        tiles.style.webkitMaskImage = mask;
+        tiles.style.maskImage = mask;
     }
+}
 
     slider.oninput = syncLens;
     map.on('zoom move', syncLens);
