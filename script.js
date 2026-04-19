@@ -78,4 +78,23 @@ async function fetchElevationData(lat, lng) {
         document.getElementById('ele').innerText = `${Math.round(ele)}m`;
 
         // Sonification: Higher elevation = Higher pitch
-        if (isAudioStarted
+        if (isAudioStarted && synth) {
+            // Mapping: 0m to 1000m -> ~150Hz to 650Hz
+            const freq = 150 + (ele * 0.5);
+            synth.triggerAttackRelease(freq, "2n");
+        }
+    } catch (err) {
+        document.getElementById('ele').innerText = "API BUSY";
+        console.error("Elevation fetch failed:", err);
+    }
+}
+
+// 8. Radius Slider Sync
+document.getElementById('radius').oninput = (e) => {
+    if (probeCircle) {
+        probeCircle.setRadius(parseInt(e.target.value));
+    }
+};
+
+// Fire the initialization
+window.onload = initMap;

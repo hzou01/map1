@@ -2,113 +2,190 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>URBAN PROBE | Industrial Sensor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URBAN PROBE | Geographic Sonification</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.19/leaflet-maplibre-gl.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #0a0a0a; overflow: hidden; font-family: sans-serif; }
-        
-        /* THE MAP - Forces Monotone Roads */
+        /* 2. Layout & Typography */
+        body, html { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #0a0a0a; overflow: hidden; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
         #map { 
-            position: absolute; width: 100vw; height: 100vh; z-index: 1; 
-            background: #0a0a0a;
+            position: absolute; top: 0; left: 0; 
+            width: 100vw; height: 100vh; z-index: 1; 
         }
 
-        /* This filter isolates green/blue and kills road colors */
+        /* Applying the 'Industrial' filter to the Shortbread tiles */
         .leaflet-tile-container {
-            filter: brightness(0.5) contrast(1.2) saturate(0.1) grayscale(0.5);
+            filter: saturate(0.2) brightness(0.7) contrast(1.1);
         }
 
-        /* UI OVERLAY */
-        #ui {
-            position: absolute; top: 20px; left: 20px; z-index: 100;
-            width: 260px; padding: 25px;
-            background: rgba(20, 20, 20, 0.5);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 15px;
+        /* 3. Liquid Glass UI Layer */
+        #ui-layer {
+            position: absolute; top: 25px; left: 25px; z-index: 100;
+            width: 280px; padding: 25px;
+            background: rgba(25, 25, 25, 0.4);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
             color: white;
+            pointer-events: auto;
         }
 
-        h1 { font-size: 10px; letter-spacing: 3px; opacity: 0.5; margin: 0 0 15px 0; text-transform: uppercase; }
-        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 10px 0; font-size: 13px; }
-        .label { font-size: 9px; opacity: 0.4; text-transform: uppercase; font-family: sans-serif; }
+        h1 { 
+            font-size: 10px; letter-spacing: 3px; margin: 0 0 20px 0; 
+            opacity: 0.5; text-transform: uppercase; 
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+
+        .data-row { 
+            display: flex; justify-content: space-between; 
+            margin-bottom: 12px; font-family: 'Courier New', monospace; 
+            font-size: 14px; 
+        }
+
+        .label { 
+            font-family: sans-serif; font-size: 10px; 
+            opacity: 0.4; text-transform: uppercase; 
+        }
+
+        /* 4. Controls */
+        input[type=range] { width: 100%; margin-top: 15px; cursor: pointer; }
         
         button { 
-            width: 100%; padding: 12px; background: white; border: none; 
-            font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px;
+            width: 100%; padding: 14px; margin-top: 25px; 
+            border-radius: 10px; border: none; background: #fff; 
+            color: #000; font-weight: 700; font-size: 12px; 
+            text-transform: uppercase; cursor: pointer; 
+            transition: all 0.2s;
         }
-        input[type=range] { width: 100%; margin-top: 15px; }
+
+        button:active { transform: scale(0.96); }
+
+        /* Hide Leaflet UI Elements */
+        .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <div id="ui">
+    <div id="ui-layer">
         <h1>Urban Probe Sensor</h1>
-        <div class="stat"><span class="label">Pos:</span> <span id="coords">DRAG PIN</span></div>
-        <div class="stat"><span class="label">Elev:</span> <span id="ele">--</span></div>
-        <input type="range" id="radius" min="100" max="2000" value="500">
-        <button id="start-btn">INITIALIZE AUDIO</button>
+        <div class="data-row">
+            <span class="label">Position</span>
+            <span id="coords">DRAG PIN</span>
+        </div>
+        <div class="data-row">
+            <span class="label">Topography</span>
+            <span id="ele">-- m</span>
+        </div>
+        
+        <input type="range" id="radius-slider" min="100" max="2000" value="500">
+        <p class="label" style="margin-top: 5px;">Radius Sensitivity</p>
+
+        <button id="audio-btn">Initialize Probe</button>
     </div>
 
     <script>
-        let map, marker, circle, synth;
-        let active = false;
+        let map, marker, probeCircle, synth;
+        let isStarted = false;
 
         function init() {
-            // Setup Map
-            map = L.map('map', { zoomControl: false }).setView([41.8245, -71.4128], 15);
-            
-            // Voyager tiles show water/parks clearly for the filter to work
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png').addTo(map);
+            // Setup Map centered on Providence
+            const startPos = [41.8245, -71.4128];
+            map = L.map('map', { zoomControl: false }).setView(startPos, 15);
 
-            marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
-
-            circle = L.circle([41.8245, -71.4128], { 
-                radius: 500, color: 'white', weight: 1, fillOpacity: 0.05 
+            // Load Shortbread (黄油酥饼) Vector Tiles via MapLibre
+            L.maplibreGL({
+                style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json',
+                pixelRatio: window.devicePixelRatio || 1
             }).addTo(map);
 
-            // Update UI on drag
+            // Add the Draggable Hardware Marker
+            marker = L.marker(startPos, { draggable: true }).addTo(map);
+
+            // Add the Visual Probe Radius
+            probeCircle = L.circle(startPos, {
+                radius: 500,
+                color: 'white',
+                weight: 1,
+                fillColor: 'white',
+                fillOpacity: 0.05
+            }).addTo(map);
+
+            // Update UI on Drag
             marker.on('drag', (e) => {
-                const p = e.target.getLatLng();
-                circle.setLatLng(p);
-                document.getElementById('coords').innerText = p.lat.toFixed(3) + ", " + p.lng.toFixed(3);
+                const pos = e.target.getLatLng();
+                probeCircle.setLatLng(pos);
+                document.getElementById('coords').innerText = 
+                    `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`;
+            });
+
+            // Sonify on Release
+            marker.on('dragend', (e) => {
+                const pos = e.target.getLatLng();
+                fetchElevation(pos.lat, pos.lng);
             });
 
             // Audio Activation
-            document.getElementById('start-btn').onclick = async () => {
-                await Tone.start();
-                synth = new Tone.MonoSynth({
-                    oscillator: { type: "sine" },
-                    envelope: { attack: 0.1, release: 1 }
-                }).toDestination();
-                document.getElementById('start-btn').innerText = "SENSORS ACTIVE";
-                active = true;
+            const btn = document.getElementById('audio-btn');
+            btn.onclick = async () => {
+                if (!isStarted) {
+                    await Tone.start();
+                    synth = new Tone.MonoSynth({
+                        oscillator: { type: "sine" },
+                        envelope: { attack: 0.2, release: 2 }
+                    }).toDestination();
+                    
+                    btn.innerText = "SENSORS ONLINE";
+                    btn.style.background = "rgba(255,255,255,0.2)";
+                    btn.style.color = "#fff";
+                    isStarted = true;
+                }
             };
 
-            // Elevation Probe on drop
-            marker.on('dragend', async (e) => {
-                const p = e.target.getLatLng();
-                try {
-                    const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${p.lat},${p.lng}`);
-                    const data = await res.json();
-                    const val = data.results[0].elevation;
-                    document.getElementById('ele').innerText = Math.round(val) + "m";
-                    if (active && synth) synth.triggerAttackRelease(200 + val, "4n");
-                } catch(err) { console.log("API Error"); }
-            });
-
-            // Slider Sync
-            document.getElementById('radius').oninput = (e) => {
-                circle.setRadius(e.target.value);
+            // Slider Radius Control
+            document.getElementById('radius-slider').oninput = (e) => {
+                probeCircle.setRadius(e.target.value);
             };
         }
 
+        // Elevation Data Fetch (2026 Free API)
+        async function fetchElevation(lat, lng) {
+            try {
+                const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
+                const data = await res.json();
+                const ele = data.results[0].elevation;
+
+                document.getElementById('ele').innerText = `${Math.round(ele)}m`;
+
+                if (isStarted && synth) {
+                    // Map height to pitch: 0m = low, 1000m = high
+                    let freq = 150 + (ele * 0.5); 
+                    synth.triggerAttackRelease(freq, "2n");
+                }
+            } catch (err) {
+                document.getElementById('ele').innerText = "DATA ERROR";
+            }
+        }
+
+        // Run on load
         window.onload = init;
     </script>
 </body>
