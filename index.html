@@ -1,97 +1,121 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <meta charset="UTF-8">
-    <title>Urban Probe v1.0</title>
+    <title>URBAN PROBE v1.0</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; font-family: sans-serif; }
-        
-        /* Force Map Visibility */
+        /* 2. Fix the Black Screen - Must have height on HTML and BODY */
+        html, body { 
+            margin: 0; padding: 0; width: 100%; height: 100%; 
+            background: #000; overflow: hidden; color: white;
+            font-family: sans-serif;
+        }
+
         #map { 
-            position: absolute; 
-            width: 100vw; 
-            height: 100vh; 
+            position: absolute; top: 0; left: 0; 
+            width: 100vw; height: 100vh; 
             z-index: 1; 
         }
 
-        #ui-layer {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 100;
-            width: 260px;
-            padding: 20px;
-            background: rgba(30, 30, 30, 0.8);
-            backdrop-filter: blur(10px);
+        /* 3. The Industrial UI */
+        #ui {
+            position: absolute; top: 20px; left: 20px; z-index: 100;
+            width: 260px; padding: 25px;
+            background: rgba(30, 30, 30, 0.7);
+            backdrop-filter: blur(15px);
             border: 1px solid rgba(255,255,255,0.1);
             border-radius: 12px;
-            color: white;
             pointer-events: auto;
         }
 
-        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin-top: 0; }
-        .stat { display: flex; justify-content: space-between; margin: 10px 0; font-family: monospace; }
-        button { width: 100%; padding: 10px; cursor: pointer; font-weight: bold; margin-top: 10px; border-radius: 5px; border: none; }
-        input { width: 100%; margin-top: 10px; }
+        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 10px 0; }
+        h1 { font-size: 10px; letter-spacing: 3px; opacity: 0.5; margin: 0 0 15px 0; }
+        button { width: 100%; padding: 12px; background: white; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; }
+        input[type=range] { width: 100%; margin-top: 15px; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
 
-    <div id="ui-layer">
-        <h1>Urban Probe Sensor</h1>
-        <div class="stat"><span>Lat/Lng:</span> <span id="coords">--</span></div>
-        <div class="stat"><span>Elev:</span> <span id="ele">--</span></div>
+    <div id="ui">
+        <h1>URBAN PROBE SENSOR</h1>
+        <div class="stat"><span>COORDS:</span> <span id="coords">DRAG PIN</span></div>
+        <div class="stat"><span>ELEV:</span> <span id="ele">--</span></div>
         <input type="range" id="radius" min="100" max="2000" value="500">
-        <button id="start-btn">ENABLE AUDIO</button>
+        <button id="audio-btn">START SENSORS</button>
     </div>
 
     <script>
-        let map, marker, circle, synth;
+        let map, marker, probeCircle, synth;
 
         function init() {
-            // 1. Setup Map
-            map = L.map('map', { zoomControl: false }).setView([41.8245, -71.4128], 15);
+            // 1. Initialize Map
+            map = L.map('map', { zoomControl: false }).setView([41.82, -71.41], 15);
             
-            // 2. Load Tiles (Standard OSM if Dark is failing)
+            // 2. Load the actual OSM Tiles
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-            // 3. Add Marker
-            marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
+            // 3. Add Draggable Marker
+            marker = L.marker([41.82, -71.41], { draggable: true }).addTo(map);
 
-            // 4. Add Circle
-            circle = L.circle([41.8245, -71.4128], { radius: 500, color: 'red' }).addTo(map);
+            // 4. Add Visual Radius
+            probeCircle = L.circle([41.82, -71.41], { 
+                radius: 500, 
+                color: 'white', 
+                weight: 1, 
+                fillOpacity: 0.1 
+            }).addTo(map);
 
-            // Update on Drag
+            // 5. Update Numbers ON DRAG
             marker.on('drag', function(e) {
-                const p = e.target.getLatLng();
-                circle.setLatLng(p);
-                document.getElementById('coords').innerText = p.lat.toFixed(3) + ", " + p.lng.toFixed(3);
+                const pos = e.target.getLatLng();
+                probeCircle.setLatLng(pos);
+                document.getElementById('coords').innerText = pos.lat.toFixed(3) + ", " + pos.lng.toFixed(3);
             });
 
-            // Sound logic
-            document.getElementById('start-btn').onclick = async () => {
+            // 6. Audio Logic
+            const btn = document.getElementById('audio-btn');
+            btn.onclick = async () => {
                 await Tone.start();
-                synth = new Tone.MonoSynth().toDestination();
-                document.getElementById('start-btn').innerText = "AUDIO ON";
+                synth = new Tone.MonoSynth({
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.1, release: 1 }
+                }).toDestination();
+                btn.innerText = "ACTIVE";
+                btn.style.background = "#222";
+                btn.style.color = "white";
             };
 
+            // 7. Data Probe ON DROP
             marker.on('dragend', async function(e) {
-                const p = e.target.getLatLng();
+                const pos = e.target.getLatLng();
                 try {
-                    const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${p.lat},${p.lng}`);
+                    // Fetch real-time Topography
+                    const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${pos.lat},${pos.lng}`);
                     const data = await res.json();
-                    const val = data.results[0].elevation;
-                    document.getElementById('ele').innerText = Math.round(val) + "m";
-                    if (synth) synth.triggerAttackRelease(200 + val, "4n");
-                } catch(err) { console.log("API Error"); }
+                    const elevation = data.results[0].elevation;
+                    
+                    document.getElementById('ele').innerText = Math.round(elevation) + "m";
+                    
+                    if (synth) {
+                        // Sound pitch changes based on height
+                        synth.triggerAttackRelease(200 + elevation, "4n");
+                    }
+                } catch(err) {
+                    document.getElementById('ele').innerText = "API Busy";
+                }
             });
+
+            // 8. Slider Sync
+            document.getElementById('radius').oninput = (e) => {
+                probeCircle.setRadius(e.target.value);
+            }
         }
 
         window.onload = init;
