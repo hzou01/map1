@@ -1,10 +1,9 @@
-let map, marker, chimePoly, natureSynth, bitCrusher, drone;
+let map, marker, chimePoly, natureBase, waterTexture, bitCrusher, drone;
 let isAudioActive = false;
 let ratios = { green: 0.3, gray: 0.5, blue: 0.2 }; 
 
-// Two scales for the two melodies
-const URBAN_SCALE = ["C5", "D5", "Eb5", "G5", "Ab5", "C6"]; // Sharp, high
-const NATURE_SCALE = ["C3", "Eb3", "G3", "Bb3"]; // Low, soft
+const URBAN_SCALE = ["C5", "D5", "Eb5", "G5", "Ab5", "C6", "D6"]; 
+const NATURE_SCALE = ["C2", "Eb2", "G2"]; // Deep, soothing bass
 
 function init() {
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
@@ -21,7 +20,6 @@ function init() {
         const metersPerPixel = 156543.03392 * Math.cos(marker.getLatLng().lat * Math.PI / 180) / Math.pow(2, map.getZoom());
         const pixelRadius = radiusMeters / metersPerPixel;
 
-        // Visual hole logic (Same as before)
         const holeX = centerPoint.x + 100; 
         const holeY = centerPoint.y + 100;
         const fullPath = `M 0 0 H ${window.innerWidth + 200} V ${window.innerHeight + 200} H 0 Z M ${holeX} ${holeY} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
@@ -33,55 +31,58 @@ function init() {
     function updateAudioParams() {
         if (!isAudioActive) return;
 
-        // 1. ROAD EFFECT: Resonance & Grit (Gray)
-        // High roads = high distortion and more "broken" sound
-        bitCrusher.bits.rampTo(1 + (8 * (1 - ratios.gray)), 0.5); 
-        
-        // 2. WATER EFFECT: Speed (Blue)
-        // More water = significantly slower rhythm
-        const tempo = Math.max(40, 180 - (ratios.blue * 140));
+        // URBAN: BitCrush intensity and Tempo
+        bitCrusher.bits.rampTo(1 + (7 * (1 - ratios.gray)), 0.5); 
+        const tempo = Math.max(50, 100 + (ratios.gray * 120)); // NYC speeds (up to 220bpm)
         Tone.Transport.bpm.rampTo(tempo, 1);
 
-        // 3. PARK EFFECT: Softness (Green)
-        // More parks = longer release and lower filter (muffled/dreamy)
-        const cutoff = 500 + (ratios.green * 4000);
-        natureSynth.set({ envelope: { release: 1 + ratios.green * 4 } });
+        // NATURE: Bass Volume & Depth
+        natureBase.volume.rampTo(-40 + (ratios.green * 30), 1);
+
+        // WATER: Cloudiness (Filter + Noise)
+        const waterCloud = -50 + (ratios.blue * 40);
+        waterTexture.volume.rampTo(waterCloud, 1);
     }
 
     startBtn.onclick = async () => {
         try {
             await Tone.start();
 
-            // EFFECT CHAIN: BitCrusher for the industrial road "noise"
+            // 1. URBAN LAYER: High Jitter + Grit
             bitCrusher = new Tone.BitCrusher(8).toDestination();
-
-            // MELODY 1: The Urban Jitter (High, sharp bells)
             chimePoly = new Tone.PolySynth(Tone.FMSynth).connect(bitCrusher);
-            chimePoly.set({ envelope: { attack: 0.01, release: 0.2 } });
+            chimePoly.set({ 
+                harmonicity: 3.5, 
+                envelope: { attack: 0.001, release: 0.1 } 
+            });
 
-            // MELODY 2: The Nature Bloom (Soft, deep chords)
-            natureSynth = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "sine" },
-                envelope: { attack: 0.5, sustain: 0.3 }
+            // 2. NATURE LAYER: The Low Soothe (Deep Sine Base)
+            natureBase = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "triangle" },
+                envelope: { attack: 2, decay: 2, sustain: 1, release: 5 }
             }).toDestination();
+            natureBase.volume.value = -40;
 
-            // BACKGROUND DRONE: A constant shimmer
-            drone = new Tone.Oscillator("C4", "sine").toDestination();
-            drone.volume.value = -30;
-            drone.start();
+            // 3. WATER LAYER: The Cloud (Noise + AutoFilter for texture)
+            const waterFilter = new Tone.AutoFilter("1n").toDestination().start();
+            waterTexture = new Tone.Noise("white").connect(waterFilter);
+            waterTexture.volume.value = -50;
+            waterTexture.start();
 
-            // THE SEQUENCER (The Logic)
+            // THE GENERATIVE SCORE
             new Tone.Loop(time => {
-                // URBAN LAYER (Gray/Roads): Very fast, density increases with gray
-                if (Math.random() < (0.1 + ratios.gray * 0.8)) {
+                // High-Speed Urban Scatter (16th notes)
+                if (Math.random() < (0.05 + ratios.gray * 0.9)) {
                     const note = URBAN_SCALE[Math.floor(Math.random() * URBAN_SCALE.length)];
-                    chimePoly.triggerAttackRelease(note, "32n", time);
+                    chimePoly.triggerAttackRelease(note, "64n", time);
                 }
 
-                // NATURE LAYER (Green): Slower, only plays if green ratio is high
-                if (Math.random() < (ratios.green * 0.5)) {
-                    const note = NATURE_SCALE[Math.floor(Math.random() * NATURE_SCALE.length)];
-                    natureSynth.triggerAttackRelease(note, "2n", time);
+                // Nature "Breathe" (Only every 2 measures)
+                if (Tone.Transport.getTicksAtTime(time) % (Tone.Ticks("1n").toNumber() * 2) === 0) {
+                    if (Math.random() < ratios.green) {
+                        const note = NATURE_SCALE[Math.floor(Math.random() * NATURE_SCALE.length)];
+                        natureBase.triggerAttackRelease(note, "1n", time);
+                    }
                 }
             }, "16n").start(0);
 
@@ -95,7 +96,6 @@ function init() {
     map.on('zoom move', syncProbe);
     marker.on('drag', syncProbe);
     marker.on('dragend', () => {
-        // Drastic random shifts to test the effect
         ratios.green = Math.random(); 
         ratios.gray = Math.random();
         ratios.blue = 1 - (ratios.green + ratios.gray);
