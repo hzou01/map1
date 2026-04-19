@@ -13,23 +13,20 @@ body, html {
 
 #frost-layer {
     position: absolute;
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
-    z-index: 5; /* Above map, below UI */
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 5;
     pointer-events: none;
     
-    /* The Frosted Glass Effect */
-    background: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.4); /* The "Frost" */
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
 
-    /* The Mask: Default to showing everything (black) */
-    mask-image: radial-gradient(circle, black 100%, transparent 100%);
-    -webkit-mask-image: radial-gradient(circle, black 100%, transparent 100%);
-    
-    /* Crucial: This defines the 'Hole' logic */
-    mask-composite: exclude;
-    -webkit-mask-composite: destination-out;
+    /* We tell the mask to simply hide the blur where it is transparent */
+    -webkit-mask-image: radial-gradient(circle, transparent 100%, black 100%);
+    mask-image: radial-gradient(circle, transparent 100%, black 100%);
 }
 
 #ui {
