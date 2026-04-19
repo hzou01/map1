@@ -14,7 +14,7 @@
 
         /* THE SHORTBREAD SIMULATION FILTER */
         .leaflet-tile-container {
-            filter: sepia(0.2) brightness(1.1) contrast(1.1) saturate(0.4) hue-rotate(-10deg);
+            filter: sepia(0.15) brightness(1.05) contrast(1.08) saturate(0.75) hue-rotate(-8deg);
         }
 
         /* Your Polished UI */
@@ -57,7 +57,7 @@
     function init() {
         map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 16);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+       L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
 
         marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
