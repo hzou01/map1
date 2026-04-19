@@ -2,19 +2,19 @@ let map, marker, circle, synth;
 let isAudioActive = false;
 
 function init() {
-    // 1. Map & Standard Layers
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
+    // 1. Initialize Map
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 2. Marker & Initial Circle
+    // 2. DOM Elements
     const slider = document.getElementById('radius-slider');
     const display = document.getElementById('radius-display');
 
+    // 3. Setup Marker and Circle
     marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
     
-    // We initialize the circle with the slider's actual current value
     circle = L.circle([41.8245, -71.4128], {
-        radius: slider.value, 
+        radius: slider.value,
         color: '#000',
         weight: 1,
         dashArray: '5, 10',
@@ -22,12 +22,14 @@ function init() {
         fillColor: '#000'
     }).addTo(map);
 
-    // 3. The Sync Function
-    function syncProbeRadius(value) {
-        const val = parseInt(value);
+    // 4. THE SYNC LOGIC
+    function syncProbe() {
+        const val = parseInt(slider.value);
+        
+        // Update the circle on the map
         circle.setRadius(val);
         
-        // Dynamic unit switching
+        // Update the text display
         if (val >= 1000) {
             display.innerText = (val / 1000).toFixed(1) + "km";
         } else {
@@ -35,23 +37,21 @@ function init() {
         }
     }
 
-    // 4. Listeners
-    slider.oninput = (e) => syncProbeRadius(e.target.value);
+    // Bind the listener for live dragging
+    slider.oninput = syncProbe;
 
-    // 5. INITIAL INJECTION: This makes the HTML change immediately
-    syncProbeRadius(slider.value);
+    // FORCE INITIAL SYNC (This fixes the "400m stays the same" bug)
+    syncProbe();
 
-    // Marker interactions
+    // 5. Interaction Listeners
     marker.on('drag', (e) => {
-        const p = e.target.getLatLng();
-        circle.setLatLng(p);
-        document.getElementById('lat').innerText = p.lat.toFixed(4);
-        document.getElementById('lng').innerText = p.lng.toFixed(4);
+        circle.setLatLng(e.target.getLatLng());
     });
 
-    marker.on('dragend', (e) => fetchElevation(e.target.getLatLng()));
+    marker.on('dragend', (e) => {
+        fetchElevation(e.target.getLatLng());
+    });
 
-    // Audio button logic
     document.getElementById('start-btn').onclick = async () => {
         await Tone.start();
         synth = new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination();
@@ -65,9 +65,8 @@ async function fetchElevation(pos) {
         const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${pos.lat},${pos.lng}`);
         const data = await res.json();
         const ele = Math.round(data.results[0].elevation);
-        document.getElementById('ele').innerText = ele + "m";
         if (isAudioActive && synth) synth.triggerAttackRelease(150 + ele, "1n");
-    } catch(e) { document.getElementById('ele').innerText = "OFFLINE"; }
+    } catch(e) { console.warn("Elevation Sync Error"); }
 }
 
 window.onload = init;

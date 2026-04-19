@@ -2,12 +2,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URBAN PROBE | Sensory Feedback</title>
-    
+    <title>URBAN PROBE | Radius Focus</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
-    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
@@ -18,24 +15,12 @@
     <div id="ui">
         <h1>Urban Probe System</h1>
         
-        <div class="stat">
-            <span class="label">LAT</span>
-            <span id="lat">41.8245</span>
-        </div>
-        <div class="stat">
-            <span class="label">LNG</span>
-            <span id="lng">-71.4128</span>
-        </div>
-        <div class="stat">
-            <span class="label">ALT</span>
-            <span id="ele">-- m</span>
-        </div>
-        
         <div class="control-group">
-        <div class="slider-header">
-        <span class="label">Probe Radius</span>
-        <span id="radius-display"></span> </div>
-         <input type="range" id="radius-slider" min="400" max="20000" value="400">
+            <div class="slider-header">
+                <span class="label">Probe Radius</span>
+                <span id="radius-display"></span> 
+            </div>
+            <input type="range" id="radius-slider" min="400" max="20000" value="400">
         </div>
 
         <button id="start-btn">INITIALIZE SENSORS</button>
