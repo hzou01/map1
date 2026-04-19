@@ -30,7 +30,7 @@ function init() {
 
         // Apply Mask to the Frost Layer
         // We use a Hard Stop (99% to 100%) for a clean edge
-        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, black 99%, transparent 100%)`;
+        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x + 20}px ${centerPoint.y + 20}px, black 99%, transparent 100%)`;
         
         frost.style.webkitMaskImage = mask;
         frost.style.maskImage = mask;
