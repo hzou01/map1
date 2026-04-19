@@ -1,121 +1,32 @@
-/* 1. Global Reset */
-body, html { 
-    margin: 0; 
-    padding: 0; 
-    width: 100vw; 
-    height: 100vh; 
-    background: #e0e0e0; /* Matches the map for a seamless look */
-    overflow: hidden; 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-}
+/* 1. Reset */
+body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; }
 
-/* 2. Map Container */
-#map { 
-    position: absolute; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    height: 100%; 
-    z-index: 1; 
-    background: #d4d4d4; 
-}
+/* 2. Map */
+#map { position: absolute; width: 100vw; height: 100vh; z-index: 1; }
 
-/* 3. The "Designer Blueprint" Filter 
-   This makes the city look like a technical drawing.
-   - Grayscale(1) removes the clutter.
-   - Brightness(1.1) keeps it from being too dark.
-   - Contrast(0.8) softens the roads.
-   - Sepia(0.2) gives it a slight architectural 'warmth'. */
-.leaflet-tile-container {
-    filter: grayscale(1) brightness(1.1) contrast(0.8) sepia(0.1);
-}
-
-/* 4. Industrial 'Frosted Glass' UI */
+/* 3. The Shortbread-Match UI */
 #ui {
-    position: absolute; 
-    top: 30px; 
-    left: 30px; 
-    z-index: 1000;
-    width: 280px; 
-    padding: 24px;
-    
-    /* Frosted Glass Effect */
-    background: rgba(255, 255, 255, 0.7); 
+    position: absolute; top: 25px; left: 25px; z-index: 100;
+    width: 270px; padding: 25px;
+    background: rgba(255, 255, 255, 0.7);
     backdrop-filter: blur(15px) saturate(160%);
     -webkit-backdrop-filter: blur(15px);
-    
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-radius: 16px;
+    border: 1px solid rgba(0, 0, 0, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.06);
     color: #1a1a1a;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
 }
 
-/* 5. Typography & Data Layout */
-h1 { 
-    font-size: 11px; 
-    font-weight: 700; 
-    letter-spacing: 2px; 
-    margin: 0 0 20px 0; 
-    text-transform: uppercase; 
-    color: #000;
-    opacity: 0.7;
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-    padding-bottom: 8px;
-}
-
-.stat-row { 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center;
-    margin-bottom: 12px; 
-}
-
-.label { 
-    font-size: 9px; 
-    font-weight: 600; 
-    opacity: 0.4; 
-    text-transform: uppercase; 
-}
-
-#coords, #ele { 
-    font-family: 'SF Mono', 'Courier New', monospace; 
-    font-size: 14px; 
-    color: #000; 
-}
-
-/* 6. Interaction Controls */
-input[type=range] { 
-    width: 100%; 
-    margin-top: 15px; 
-    accent-color: #000; 
-    cursor: pointer;
-}
+h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
+.stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; }
+.label { font-size: 9px; opacity: 0.4; text-transform: uppercase; font-family: sans-serif; font-weight: bold; }
 
 button { 
-    width: 100%; 
-    padding: 14px; 
-    background: #000; 
-    color: #fff; 
-    border: none; 
-    font-weight: 700; 
-    font-size: 11px; 
-    letter-spacing: 1px;
-    text-transform: uppercase; 
-    cursor: pointer; 
-    border-radius: 8px; 
-    margin-top: 25px;
-    transition: background 0.2s ease, transform 0.1s;
+    width: 100%; padding: 12px; background: #000; color: #fff; border: none; 
+    font-weight: bold; cursor: pointer; border-radius: 6px; margin-top: 15px;
 }
 
-button:hover {
-    background: #333;
-}
+input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; }
 
-button:active { 
-    transform: scale(0.98); 
-}
-
-/* 7. Leaflet UI Cleanup */
-.leaflet-bar, .leaflet-control-attribution { 
-    display: none !important; 
-}
+/* Clean up Leaflet visuals */
+.leaflet-bar, .leaflet-control-attribution { display: none !important; }

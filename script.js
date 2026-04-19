@@ -1,100 +1,83 @@
-let map, marker, probeCircle, synth;
-let isAudioStarted = false;
+let map, marker, circle, synth;
+let isAudioActive = false;
 
-// 1. Initialize the Sound Engine (Tone.js)
-const audioBtn = document.getElementById('start-btn');
-audioBtn.addEventListener('click', async () => {
-    if (!isAudioStarted) {
-        await Tone.start();
-        
-        // Organic Sine wave for the "Botanical/Urban" probe feel
-        synth = new Tone.MonoSynth({
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.2, release: 1.5 }
-        }).toDestination();
-        
-        audioBtn.innerText = "SENSORS ACTIVE";
-        audioBtn.style.background = "rgba(255,255,255,0.2)";
-        audioBtn.style.color = "#fff";
-        isAudioStarted = true;
-    }
-});
-
-// 2. Initialize the Map (Shortbread Vector Tiles)
-function initMap() {
-    const providence = [41.8245, -71.4128];
-
-    // Create Leaflet map without zoom controls for a cleaner UI
+function init() {
+    // 1. Setup Leaflet
     map = L.map('map', { 
         zoomControl: false,
         attributionControl: false 
-    }).setView(providence, 15);
+    }).setView([41.8245, -71.4128], 15);
 
-    // Load the Shortbread Vector Style (黄油酥饼)
-    // Using MapLibre plugin for high-quality vector rendering
-    L.maplibreGL({
-        style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json',
-        // Optional: Ensure the canvas is sharp on Mac Retina displays
-        pixelRatio: window.devicePixelRatio || 1
-    }).addTo(map);
-
-    // 3. Add the Draggable Physical Probe
-    marker = L.marker(providence, { 
-        draggable: true 
-    }).addTo(map);
-
-    // 4. Add the Liquid Glass Radius Circle
-    probeCircle = L.circle(providence, {
-        radius: 500,
-        color: 'white',
-        weight: 1,
-        fillColor: 'white',
-        fillOpacity: 0.08
-    }).addTo(map);
-
-    // 5. Update Coordinates in Real-Time on Drag
-    marker.on('drag', (e) => {
-        const pos = e.target.getLatLng();
-        probeCircle.setLatLng(pos);
-        document.getElementById('coords').innerText = 
-            `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`;
-    });
-
-    // 6. Data Probe: Fetch Elevation on Release (Drop)
-    marker.on('dragend', (e) => {
-        const pos = e.target.getLatLng();
-        fetchElevationData(pos.lat, pos.lng);
-    });
-}
-
-// 7. Topography API Logic
-async function fetchElevationData(lat, lng) {
+    // 2. Load Shortbread Vector Preset (黄油酥饼)
+    // This uses MapLibre to render the exact OSM style you want
     try {
-        const response = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
-        const data = await response.json();
-        const ele = data.results[0].elevation;
+        const glLayer = L.maplibreGL({
+            style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json',
+            pane: 'tilePane'
+        }).addTo(map);
+        
+        // Safety: Force map to recognize its size after a short delay
+        setTimeout(() => map.invalidateSize(), 500);
+    } catch (e) {
+        console.error("Vector tiles failed, check internet connection.");
+    }
 
-        // Update the UI
-        document.getElementById('ele').innerText = `${Math.round(ele)}m`;
+    // 3. Add Hardware Marker
+    marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
-        // Sonification: Higher elevation = Higher pitch
-        if (isAudioStarted && synth) {
-            // Mapping: 0m to 1000m -> ~150Hz to 650Hz
-            const freq = 150 + (ele * 0.5);
-            synth.triggerAttackRelease(freq, "2n");
+    // 4. Add Visual Range
+    circle = L.circle([41.8245, -71.4128], { 
+        radius: 500, color: 'white', weight: 1, fillOpacity: 0.1 
+    }).addTo(map);
+
+    // 5. Update UI on Drag
+    marker.on('drag', (e) => {
+        const p = e.target.getLatLng();
+        circle.setLatLng(p);
+        document.getElementById('coords').innerText = p.lat.toFixed(4) + ", " + p.lng.toFixed(4);
+    });
+
+    // 6. Data Probe on Drop
+    marker.on('dragend', async (e) => {
+        const p = e.target.getLatLng();
+        fetchElevation(p.lat, p.lng);
+    });
+
+    // 7. Audio Start
+    document.getElementById('start-btn').onclick = async () => {
+        await Tone.start();
+        synth = new Tone.MonoSynth({
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.1, release: 2 }
+        }).toDestination();
+        
+        document.getElementById('start-btn').innerText = "SENSORS ONLINE";
+        document.getElementById('start-btn').style.opacity = "0.5";
+        isAudioActive = true;
+    };
+
+    // 8. Slider Sync
+    document.getElementById('radius').oninput = (e) => {
+        circle.setRadius(e.target.value);
+    };
+}
+
+async function fetchElevation(lat, lng) {
+    try {
+        const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
+        const data = await res.json();
+        const val = data.results[0].elevation;
+        
+        document.getElementById('ele').innerText = Math.round(val) + "m";
+        
+        if (isAudioActive && synth) {
+            // Mapping elevation to a clean frequency
+            synth.triggerAttackRelease(180 + val, "2n");
         }
-    } catch (err) {
-        document.getElementById('ele').innerText = "API BUSY";
-        console.error("Elevation fetch failed:", err);
+    } catch(err) {
+        document.getElementById('ele').innerText = "DATA ERROR";
     }
 }
 
-// 8. Radius Slider Sync
-document.getElementById('radius').oninput = (e) => {
-    if (probeCircle) {
-        probeCircle.setRadius(parseInt(e.target.value));
-    }
-};
-
-// Fire the initialization
-window.onload = initMap;
+// Fire system
+window.onload = init;

@@ -2,34 +2,51 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>DEBUG: Urban Probe</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URBAN PROBE | Shortbread Edition</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.19/leaflet-maplibre-gl.js"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        /* Force the browser to recognize the container size */
-        html, body { 
-            margin: 0; padding: 0; 
-            width: 100vw !important; height: 100vh !important; 
-            background: #222; /* If this is black, the map isn't loading at all */
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #fff; overflow: hidden; font-family: sans-serif; }
+        
+        /* Map Container */
+        #map { position: absolute; width: 100vw; height: 100vh; z-index: 1; background: #f0f0f0; }
 
-        #map { 
-            position: absolute; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            z-index: 1; 
-            background: #333; /* If you see DARK GRAY, the DIV is working, but the MAP isn't */
-        }
-
+        /* Industrial Frosted UI */
         #ui {
-            position: absolute; top: 20px; left: 20px; z-index: 999;
-            width: 250px; padding: 20px;
-            background: rgba(0,0,0,0.8); color: white;
-            border-radius: 10px; border: 1px solid white;
+            position: absolute; top: 30px; left: 30px; z-index: 100;
+            width: 260px; padding: 25px;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(15px) saturate(160%);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            color: #1a1a1a;
+            pointer-events: auto;
         }
+
+        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
+        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; }
+        .label { font-size: 9px; opacity: 0.4; text-transform: uppercase; font-weight: bold; }
+
+        button { 
+            width: 100%; padding: 12px; background: #000; color: #fff; border: none; 
+            font-weight: bold; cursor: pointer; border-radius: 6px; margin-top: 15px;
+        }
+        
+        input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; }
+
+        /* Hide Default Map UI */
+        .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
     </style>
 </head>
 <body>
@@ -37,59 +54,15 @@
     <div id="map"></div>
 
     <div id="ui">
-        <h3 style="margin-top:0; font-size: 12px;">SYSTEM DEBUG</h3>
-        <div style="font-family: monospace; font-size: 12px;">
-            LAT: <span id="lat">--</span><br>
-            LNG: <span id="lng">--</span>
-        </div>
-        <button id="audio-start" style="width:100%; margin-top:10px;">START AUDIO</button>
+        <h1>Urban Probe Sensor</h1>
+        <div class="stat"><span class="label">Pos:</span> <span id="coords">DRAG PIN</span></div>
+        <div class="stat"><span class="label">Elev:</span> <span id="ele">-- m</span></div>
+        
+        <input type="range" id="radius" min="100" max="2000" value="500">
+        
+        <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
 
-    <script>
-        console.log("System Initializing...");
-
-        let map, marker, synth;
-
-        function startSystem() {
-            try {
-                // 1. Initialize Map
-                map = L.map('map', { zoomControl: false }).setView([41.82, -71.41], 15);
-                console.log("Map Object Created");
-
-                // 2. Load standard tiles (No filters yet, let's just get a picture)
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                console.log("Tiles Requested");
-
-                // 3. Add Marker
-                marker = L.marker([41.82, -71.41], { draggable: true }).addTo(map);
-
-                // 4. Update UI on Drag
-                marker.on('drag', function(e) {
-                    const pos = e.target.getLatLng();
-                    document.getElementById('lat').innerText = pos.lat.toFixed(3);
-                    document.getElementById('lng').innerText = pos.lng.toFixed(3);
-                });
-
-                // 5. Force Map to redraw (Fixes the black screen bug)
-                setTimeout(() => { 
-                    map.invalidateSize(); 
-                    console.log("Map size invalidated/refreshed");
-                }, 500);
-
-            } catch (err) {
-                console.error("Initialization Failed:", err);
-            }
-        }
-
-        // Audio Logic
-        document.getElementById('audio-start').onclick = async () => {
-            await Tone.start();
-            synth = new Tone.MonoSynth().toDestination();
-            console.log("Audio Engine Ready");
-        };
-
-        // Fire system
-        window.onload = startSystem;
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
