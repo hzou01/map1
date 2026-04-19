@@ -2,29 +2,32 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>URBAN PROBE | High Detail</title>
+    <title>URBAN PROBE | High Contrast Detail</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #fff; overflow: hidden; }
-        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #111; overflow: hidden; }
+        #map { position: absolute; width: 100%; height: 100%; z-index: 1; }
         
-        /* UI Panel - Glass Look */
+        /* Tactical Glass UI */
         #ui {
-            position: absolute; top: 20px; left: 20px; z-index: 10;
-            width: 240px; padding: 20px;
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(0,0,0,0.1);
-            border-radius: 12px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: absolute; top: 25px; left: 25px; z-index: 10;
+            width: 250px; padding: 20px;
+            background: rgba(20, 20, 20, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #fff; font-family: 'SF Mono', monospace;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
         }
-        .stat { font-family: monospace; font-size: 13px; margin: 10px 0; display: flex; justify-content: space-between;}
-        button { width: 100%; margin-top: 10px; padding: 12px; cursor: pointer; background: #000; color: #fff; border: none; border-radius: 6px; font-weight: bold; }
+        .data { font-size: 12px; margin: 10px 0; display: flex; justify-content: space-between; opacity: 0.8; }
+        button { 
+            width: 100%; padding: 12px; background: #fff; color: #000; border: none; 
+            border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -32,60 +35,63 @@
 <div id="map"></div>
 
 <div id="ui">
-    <h1 style="margin:0 0 10px 0; font-size: 10px; letter-spacing: 2px; opacity: 0.5;">URBAN PROBE v2.1</h1>
-    <div class="stat"><span>Lat:</span><span id="lat">41.824</span></div>
-    <div class="stat"><span>Lng:</span><span id="lng">-71.412</span></div>
-    <div class="stat"><span>Ele:</span><span id="ele">-- m</span></div>
-    <button id="audio-btn">ACTIVATE SOUND</button>
+    <h1 style="font-size: 10px; letter-spacing: 3px; margin: 0 0 15px 0; opacity: 0.4;">SENSORY PROBE</h1>
+    <div class="data"><span>COORD:</span><span id="pos">--</span></div>
+    <div class="data"><span>ALT:</span><span id="alt">--</span></div>
+    <button id="audio-init">INITIALIZE AUDIO</button>
 </div>
 
 <script>
-    // Initialize Map with a focus on Detail (Zoom 16+)
-    const map = new maplibregl.Map({
-        container: 'map',
-        // Official 2026 Shortbread Mirror
-        style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json', 
-        center: [-71.4128, 41.8245], 
-        zoom: 16, // Higher zoom = more urban detail
-        pitch: 0,
-        antialias: true
-    });
+    let map, synth, isAudioStarted = false;
 
-    // Custom Draggable Probe
-    const marker = new maplibregl.Marker({ draggable: true, color: "#000" })
-        .setLngLat([-71.4128, 41.8245])
-        .addTo(map);
+    function buildProbe() {
+        // Destroy existing map if it somehow exists to prevent 'blank' collisions
+        if (map) map.remove();
 
-    // Audio Setup
-    let synth, isStarted = false;
-    document.getElementById('audio-btn').onclick = async () => {
+        map = new maplibregl.Map({
+            container: 'map',
+            // Versatiles mirror: More reliable than the main shortbread link for detail layers
+            style: 'https://tiles.versatiles.org/assets/styles/neutrino.json', 
+            center: [-71.4128, 41.8245], 
+            zoom: 15.5, // Force high detail zoom
+            pitch: 0,
+            hash: false
+        });
+
+        // Add the Industrial Probe Marker
+        const probe = new maplibregl.Marker({ draggable: true, color: "#FFFFFF" })
+            .setLngLat([-71.4128, 41.8245])
+            .addTo(map);
+
+        probe.on('dragend', () => {
+            const loc = probe.getLngLat();
+            document.getElementById('pos').innerText = `${loc.lat.toFixed(3)}, ${loc.lng.toFixed(3)}`;
+            
+            // Topographic Query
+            fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${loc.lat},${loc.lng}`)
+                .then(r => r.json())
+                .then(d => {
+                    const elevation = d.results[0].elevation;
+                    document.getElementById('alt').innerText = `${Math.round(elevation)}m`;
+                    if(isAudioStarted) synth.triggerAttackRelease(220 + (elevation * 2), "8n");
+                });
+        });
+
+        // Ensure map resizes correctly on Safari/Mac
+        map.on('load', () => map.resize());
+    }
+
+    document.getElementById('audio-init').onclick = async () => {
         await Tone.start();
-        synth = new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination();
-        document.getElementById('audio-btn').innerText = "SOUND ACTIVE";
-        isStarted = true;
+        synth = new Tone.MonoSynth({
+            oscillator: { type: "sine" },
+            envelope: { attack: 0.05, release: 1 }
+        }).toDestination();
+        document.getElementById('audio-init').innerText = "AUDIO ONLINE";
+        isAudioStarted = true;
     };
 
-    // Interaction Logic
-    marker.on('dragend', () => {
-        const ll = marker.getLngLat();
-        document.getElementById('lat').innerText = ll.lat.toFixed(3);
-        document.getElementById('lng').innerText = ll.lng.toFixed(3);
-        
-        // Data Probe: Fetch Topography
-        fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${ll.lat},${ll.lng}`)
-            .then(res => res.json())
-            .then(data => {
-                const ele = data.results[0].elevation;
-                document.getElementById('ele').innerText = Math.round(ele) + "m";
-                if(isStarted) synth.triggerAttackRelease(200 + (ele * 0.5), "4n");
-            });
-    });
-
-    // Refresh detail on load
-    map.on('load', () => {
-        map.resize();
-    });
+    window.onload = buildProbe;
 </script>
-
 </body>
 </html>
