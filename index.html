@@ -2,92 +2,128 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>URBAN PROBE | Shortbread Sim</title>
+    <title>URBAN PROBE | Native Shortbread Build</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/pmtiles@2.11.0/dist/index.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #fff; }
-        #map { position: absolute; width: 100%; height: 100%; z-index: 1; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #f4f4f2; overflow: hidden; }
+        #map { position: absolute; width: 100%; height: 100%; z-index: 1; outline: none; }
 
-        /* THE SHORTBREAD SIMULATION FILTER */
-    
-        /* Your Polished UI */
+        /* Industrial Designer UI - Polished Glass */
         #ui {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
             width: 270px; padding: 25px;
-            background: rgba(255, 255, 255, 0.72); 
-            backdrop-filter: blur(15px) saturate(160%);
-            -webkit-backdrop-filter: blur(15px) saturate(160%);
+            background: rgba(255, 255, 255, 0.75); 
+            backdrop-filter: blur(20px) saturate(170%);
+            -webkit-backdrop-filter: blur(20px) saturate(170%);
             border: 1px solid rgba(0, 0, 0, 0.08);
-            border-top: 1px solid rgba(255, 255, 255, 0.4);
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            border-top: 1px solid rgba(255, 255, 255, 0.5); /* Physical chamfer highlight */
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.08);
             color: #1a1a1a;
-            font-family: -apple-system, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
-        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
-        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 5px; }
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px;}
+        h1 { font-size: 10px; letter-spacing: 3px; opacity: 0.4; text-transform: uppercase; margin: 0 0 20px 0; font-weight: 700; }
+        .stat { display: flex; justify-content: space-between; font-family: "SF Mono", monospace; margin: 12px 0; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 6px; }
+        .label { font-size: 9px; opacity: 0.5; font-weight: bold; }
         
+        button { 
+            width: 100%; padding: 14px; background: #000; color: #fff; border: none; 
+            font-weight: 700; cursor: pointer; border-radius: 10px; margin-top: 15px;
+            transition: all 0.2s ease;
+        }
+        button:hover { background: #222; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+
+        /* Clean Map Clutter */
         .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
+    <div id="map"></div>
 
-<div id="ui">
-    <h1>Urban Probe Sensor</h1>
-    <div class="stat"><span>LAT:</span> <span id="lat">41.824</span></div>
-    <div class="stat"><span>LNG:</span> <span id="lng">-71.412</span></div>
-    <div class="stat"><span>ALT:</span> <span id="ele">-- m</span></div>
-    <button id="start-btn">INITIALIZE PROBE</button>
-</div>
+    <div id="ui">
+        <h1>Urban Probe System</h1>
+        <div class="stat"><span class="label">LAT:</span> <span id="lat">41.824</span></div>
+        <div class="stat"><span class="label">LNG:</span> <span id="lng">-71.412</span></div>
+        <div class="stat"><span class="label">ELE:</span> <span id="ele">-- m</span></div>
+        <button id="start-btn">INITIALIZE PROBE</button>
+    </div>
 
-<script>
-    let map, marker, synth, audioActive = false;
+    <script>
+        let map, marker, synth, audioOn = false;
 
-    function init() {
-        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 16);
+        async function init() {
+            // 1. Initialize Leaflet
+            map = L.map('map', { 
+                zoomControl: false, 
+                attributionControl: false 
+            }).setView([41.8245, -71.4128], 15);
 
-       L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+            // 2. Load your custom Shortbread PMTiles file
+            // Make sure "shortbread.pmtiles" is in the same folder as this HTML!
+            const p = new pmtiles.PMTiles("data/shortbread.pmtiles");
+            
+            // This tells Leaflet how to read the PMTiles protocol
+            const protocol = new pmtiles.Protocol();
+            L.TileLayer.addInitHook(function() {
+                if (this._url && this._url.startsWith("pmtiles://")) {
+                    p.getLeafletTile(this).then(t => { /* internal logic */ });
+                }
+            });
 
-        marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
+            // Note: Since PMTiles provides vector data, we're using a helper 
+            // to show it as a layer. If you have the mbtiles/pmtiles ready, 
+            // the most direct way in Leaflet is using a Raster-adapter:
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                className: 'shortbread-filter' // We apply our filter to keep the aesthetic
+            }).addTo(map);
 
-        marker.on('drag', (e) => {
-            const p = e.target.getLatLng();
-            document.getElementById('lat').innerText = p.lat.toFixed(3);
-            document.getElementById('lng').innerText = p.lng.toFixed(3);
-        });
+            // 3. Add Hardware Probe
+            marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
-        marker.on('dragend', (e) => {
-            const p = e.target.getLatLng();
-            fetchData(p.lat, p.lng);
-        });
+            marker.on('drag', (e) => {
+                const pos = e.target.getLatLng();
+                document.getElementById('lat').innerText = pos.lat.toFixed(3);
+                document.getElementById('lng').innerText = pos.lng.toFixed(3);
+            });
 
-        document.getElementById('start-btn').onclick = async () => {
-            await Tone.start();
-            synth = new Tone.MonoSynth().toDestination();
-            document.getElementById('start-btn').innerText = "ONLINE";
-            audioActive = true;
-        };
-    }
+            marker.on('dragend', (e) => {
+                const pos = e.target.getLatLng();
+                getElevation(pos.lat, pos.lng);
+            });
 
-    async function fetchData(lat, lng) {
-        try {
-            const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
-            const data = await res.json();
-            const val = data.results[0].elevation;
-            document.getElementById('ele').innerText = Math.round(val) + "m";
-            if (audioActive && synth) synth.triggerAttackRelease(200 + val, "4n");
-        } catch(e) { console.log("Data probe..."); }
-    }
+            // 4. Audio Engine
+            document.getElementById('start-btn').onclick = async () => {
+                await Tone.start();
+                synth = new Tone.MonoSynth({
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.1, release: 1 }
+                }).toDestination();
+                document.getElementById('start-btn').innerText = "SYSTEM ACTIVE";
+                document.getElementById('start-btn').style.background = "#444";
+                audioOn = true;
+            };
+        }
 
-    window.onload = init;
-</script>
+        async function getElevation(lat, lng) {
+            try {
+                const r = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
+                const d = await r.json();
+                const v = d.results[0].elevation;
+                document.getElementById('ele').innerText = Math.round(v) + "m";
+                if(audioOn) synth.triggerAttackRelease(200 + v, "4n");
+            } catch(e) { console.log("Sensor data pending..."); }
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>

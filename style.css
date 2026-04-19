@@ -4,6 +4,22 @@ body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 /* 2. Map */
 #map { position: absolute; width: 100vw; height: 100vh; z-index: 1; }
 
+/* Custom Filter to simulate Shortbread-Light schema on standard tiles */
+.leaflet-tile-container {
+    filter: 
+        sepia(0.25)        /* Warm vellum/paper tone */
+        brightness(1.1)    /* Architectural clarity */
+        contrast(1.05)     /* Sharp road edges */
+        saturate(0.35)     /* Professional muted nature colors */
+        hue-rotate(-5deg); /* Professional slate-blue water */
+}
+
+/* Make the Marker look like a hardware component */
+.leaflet-marker-icon {
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)) brightness(0.3);
+}
+
+
 /* 3. The Shortbread-Match UI */
 #ui {
     position: absolute; 
