@@ -13,12 +13,11 @@ body, html {
 
 #frost-layer {
     position: absolute;
-    /* Move the edges 20px off-screen */
-    top: -20px; 
-    left: -20px;
-    /* Make the layer 40px wider/taller than the screen */
-    width: calc(100vw + 40px); 
-    height: calc(100vh + 40px);
+    /* Overscan to fix the edge-bleeding */
+    top: -50px; 
+    left: -50px;
+    width: calc(100vw + 100px); 
+    height: calc(100vh + 100px);
     
     z-index: 5;
     pointer-events: none;
@@ -27,12 +26,12 @@ body, html {
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
 
-    mask-image: radial-gradient(circle, black 100%, transparent 100%);
-    -webkit-mask-image: radial-gradient(circle, black 100%, transparent 100%);
-    
-    mask-composite: exclude;
-    -webkit-mask-composite: destination-out;
+    /* Use a standard mask without composite */
+    /* This tells the browser: "Hide the blur where this mask is transparent" */
+    -webkit-mask-image: radial-gradient(circle, transparent 100%, black 100%);
+    mask-image: radial-gradient(circle, transparent 100%, black 100%);
 }
+
 #ui {
     position: absolute; 
     top: 25px; left: 25px; 
