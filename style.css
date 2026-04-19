@@ -1,67 +1,104 @@
 /* 1. Reset */
-body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; }
-
-/* 2. Map */
-#map { position: absolute; width: 100vw; height: 100vh; z-index: 1; }
-
-/* Custom Filter to simulate Shortbread-Light schema on standard tiles */
-.leaflet-tile-container {
-    filter: 
-        sepia(0.25)        /* Warm vellum/paper tone */
-        brightness(1.1)    /* Architectural clarity */
-        contrast(1.05)     /* Sharp road edges */
-        saturate(0.35)     /* Professional muted nature colors */
-        hue-rotate(-5deg); /* Professional slate-blue water */
+body, html { 
+    margin: 0; padding: 0; 
+    width: 100%; height: 100%; 
+    overflow: hidden; 
+    background: #000; /* Dark background for the 'Dark Mode' probe */
 }
 
-/* Make the Marker look like a hardware component */
-.leaflet-marker-icon {
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2)) brightness(0.3);
+/* 2. Map - High Contrast / Dark Aesthetic */
+#map { 
+    position: absolute; 
+    width: 100vw; 
+    height: 100vh; 
+    z-index: 1; 
+    /* This filter creates the 'Normal to Dark' transformation */
+    filter: grayscale(100%) invert(100%) brightness(0.7) contrast(1.5);
+    background: #111;
 }
 
-
-/* 3. The Shortbread-Match UI */
+/* 3. The Glass UI */
 #ui {
     position: absolute; 
     top: 25px; 
     left: 25px; 
-    z-index: 100;
+    z-index: 1000;
     width: 270px; 
-    max-width: calc(100vw - 50px); /* Safeguard */
     padding: 25px;
     
-    /* Improved Glassmorphism */
-    background: rgba(255, 255, 255, 0.72); 
-    backdrop-filter: blur(15px) saturate(160%);
-    -webkit-backdrop-filter: blur(15px) saturate(160%); /* Fixed for Safari */
+    /* Tactical Dark Glass */
+    background: rgba(30, 30, 30, 0.75); 
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
     
-    /* Layered Border & Shadow for Depth */
-    border: 1px solid rgba(0, 0, 0, 0.05);
-    border-top: 1px solid rgba(255, 255, 255, 0.4); /* Edge highlight */
-    border-radius: 16px; /* Slightly rounder feels more 'tactile' */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: 1px solid rgba(255, 255, 255, 0.25); /* Edge light highlight */
+    border-radius: 16px;
     
-    /* Soft shadow + tight ambient occlusion */
-    box-shadow: 
-        0 4px 24px rgba(0, 0, 0, 0.06),
-        0 2px 2px rgba(0, 0, 0, 0.02);
-        
-    color: #1a1a1a;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     
-    /* Ensure text is readable over the blur */
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
-.stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; }
-.label { font-size: 9px; opacity: 0.4; text-transform: uppercase; font-family: sans-serif; font-weight: bold; }
-
-button { 
-    width: 100%; padding: 12px; background: #000; color: #fff; border: none; 
-    font-weight: bold; cursor: pointer; border-radius: 6px; margin-top: 15px;
+h1 { 
+    font-size: 10px; 
+    letter-spacing: 2.5px; 
+    opacity: 0.5; 
+    text-transform: uppercase; 
+    margin: 0 0 20px 0; 
 }
 
-input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; }
+.stat { 
+    display: flex; 
+    justify-content: space-between; 
+    font-family: "SF Mono", "Roboto Mono", monospace; 
+    margin: 12px 0; 
+    font-size: 13px; 
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
+    padding-bottom: 6px; 
+}
+
+.label { 
+    font-size: 9px; 
+    opacity: 0.4; 
+    text-transform: uppercase; 
+    font-weight: bold; 
+}
+
+/* 4. Controls & Slider */
+.control-group { margin-top: 20px; }
+
+input[type=range] { 
+    width: 100%; 
+    margin-top: 12px; 
+    accent-color: #fff; /* High contrast slider thumb */
+    cursor: pointer; 
+}
+
+button { 
+    width: 100%; 
+    padding: 14px; 
+    background: #fff; 
+    color: #000; 
+    border: none; 
+    font-weight: bold; 
+    cursor: pointer; 
+    border-radius: 8px; 
+    margin-top: 20px;
+    transition: all 0.2s ease;
+}
+
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* 5. Map Elements */
+/* White Marker to pop against dark map */
+.leaflet-marker-icon {
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)) brightness(1.2);
+}
 
 /* Clean up Leaflet visuals */
 .leaflet-bar, .leaflet-control-attribution { display: none !important; }

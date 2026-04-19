@@ -2,169 +2,43 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>URBAN PROBE | Sensory Build</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URBAN PROBE | Sensory Feedback</title>
     
-    <script src="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.js"></script>
-    <link href="https://unpkg.com/maplibre-gl@4.0.0/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/pmtiles@3.0.0/dist/index.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-
-    <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #fdfdfb; }
-        #map { position: absolute; width: 100%; height: 100%; z-index: 1; }
-
-        #ui {
-            position: absolute; top: 25px; left: 25px; z-index: 100;
-            width: 270px; padding: 25px;
-            background: rgba(255, 255, 255, 0.72); 
-            backdrop-filter: blur(20px) saturate(160%);
-            -webkit-backdrop-filter: blur(20px) saturate(160%);
-            border: 1px solid rgba(0, 0, 0, 0.08);
-            border-top: 1px solid rgba(255, 255, 255, 0.5);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.06);
-            color: #1a1a1a; font-family: -apple-system, sans-serif;
-        }
-
-        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
-        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 5px; }
-        
-        /* Slider Styling */
-        input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; cursor: pointer; }
-        .label { font-size: 9px; opacity: 0.5; font-weight: bold; text-transform: uppercase; }
-
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px; }
-    </style>
 </head>
 <body>
 
-<div id="map"></div>
+    <div id="map"></div>
 
-<div id="ui">
-    <h1>Urban Probe Sensor</h1>
-    <div class="stat"><span>LAT:</span> <span id="lat">41.824</span></div>
-    <div class="stat"><span>LNG:</span> <span id="lng">-71.412</span></div>
-    <div class="stat"><span>ALT:</span> <span id="ele">-- m</span></div>
-    
-    <div style="margin-top:20px;">
-        <span class="label">Probe Radius:</span>
-        <input type="range" id="radius-slider" min="50" max="1000" value="300">
+    <div id="ui">
+        <h1>Urban Probe Sensor</h1>
+        
+        <div class="stat">
+            <span class="label">LAT</span>
+            <span id="lat">41.8245</span>
+        </div>
+        <div class="stat">
+            <span class="label">LNG</span>
+            <span id="lng">-71.4128</span>
+        </div>
+        <div class="stat">
+            <span class="label">ALT</span>
+            <span id="ele">-- m</span>
+        </div>
+        
+        <div class="control-group">
+            <span class="label">Probe Radius</span>
+            <input type="range" id="radius-slider" min="100" max="2000" value="400">
+        </div>
+
+        <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
 
-    <button id="audio-start">INITIALIZE SENSORS</button>
-</div>
-
-<script>
-    let protocol = new pmtiles.Protocol();
-    maplibregl.addProtocol("pmtiles", protocol.tile);
-
-    const map = new maplibregl.Map({
-        container: 'map',
-        style: {
-            version: 8,
-            sources: {
-                "shortbread": {
-                    type: "vector",
-                    url: "pmtiles://shortbread.pmtiles",
-                    attribution: "© OpenStreetMap"
-                }
-            },
-            layers: [
-                { id: "background", type: "background", paint: { "background-color": "#fdfdfb" } },
-                { id: "water", type: "fill", source: "shortbread", "source-layer": "water", paint: { "fill-color": "#d1dbe5" } },
-                { id: "landuse", type: "fill", source: "shortbread", "source-layer": "landuse", paint: { "fill-color": "#eef2ee" } },
-                { id: "roads", type: "line", source: "shortbread", "source-layer": "streets", paint: { "line-color": "#ffffff", "line-width": 1.5 } }
-            ]
-        },
-        center: [-71.4128, 41.8245],
-        zoom: 15
-    });
-
-    // The Probe Marker
-    const marker = new maplibregl.Marker({ draggable: true, color: "#000" })
-        .setLngLat([-71.4128, 41.8245])
-        .addTo(map);
-
-    // Function to create a circle polygon (GeoJSON)
-    function createGeoJSONCircle(center, radiusInKm, points = 64) {
-        const coords = { latitude: center[1], longitude: center[0] };
-        const km = radiusInKm;
-        const ret = [];
-        const distanceX = km / (111.32 * Math.cos(coords.latitude * Math.PI / 180));
-        const distanceY = km / 110.574;
-
-        for (let i = 0; i < points; i++) {
-            const theta = (i / points) * (2 * Math.PI);
-            const x = distanceX * Math.cos(theta);
-            const y = distanceY * Math.sin(theta);
-            ret.push([coords.longitude + x, coords.latitude + y]);
-        }
-        ret.push(ret[0]);
-        return { "type": "FeatureCollection", "features": [{ "type": "Feature", "geometry": { "type": "Polygon", "coordinates": [ret] } }] };
-    }
-
-    map.on('load', () => {
-        // Add the Sound Region Layer
-        map.addSource('circleData', {
-            'type': 'geojson',
-            'data': createGeoJSONCircle([-71.4128, 41.8245], 0.3) // 300m default
-        });
-
-        map.addLayer({
-            'id': 'circle-layer',
-            'type': 'fill',
-            'source': 'circleData',
-            'paint': {
-                'fill-color': '#000',
-                'fill-opacity': 0.05,
-                'fill-outline-color': '#000'
-            }
-        });
-
-        // Slider Interaction
-        document.getElementById('radius-slider').oninput = (e) => {
-            const radiusMeters = e.target.value;
-            const currentCenter = marker.getLngLat();
-            map.getSource('circleData').setData(createGeoJSONCircle([currentCenter.lng, currentCenter.lat], radiusMeters / 1000));
-            
-            // Link sound to radius: bigger radius = deeper bass/drone
-            if(audioReady && synth) {
-                synth.set({ envelope: { release: radiusMeters / 200 } });
-            }
-        };
-    });
-
-    // Update Circle on Marker Drag
-    marker.on('drag', () => {
-        const ll = marker.getLngLat();
-        const r = document.getElementById('radius-slider').value;
-        map.getSource('circleData').setData(createGeoJSONCircle([ll.lng, ll.lat], r / 1000));
-        document.getElementById('lat').innerText = ll.lat.toFixed(3);
-        document.getElementById('lng').innerText = ll.lng.toFixed(3);
-    });
-
-    // Audio Setup
-    let synth, audioReady = false;
-    document.getElementById('audio-start').onclick = async () => {
-        await Tone.start();
-        synth = new Tone.MonoSynth({
-            oscillator: { type: "sine" },
-            envelope: { attack: 0.1, release: 1.5 }
-        }).toDestination();
-        document.getElementById('audio-start').innerText = "SYSTEM ONLINE";
-        audioReady = true;
-    };
-
-    marker.on('dragend', () => {
-        const ll = marker.getLngLat();
-        fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${ll.lat},${ll.lng}`)
-            .then(res => res.json())
-            .then(data => {
-                const e = data.results[0].elevation;
-                document.getElementById('ele').innerText = Math.round(e) + "m";
-                if(audioReady) synth.triggerAttackRelease(100 + e, "2n");
-            });
-    });
-</script>
+    <script src="script.js"></script>
 </body>
 </html>
