@@ -10,19 +10,12 @@ body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
     position: absolute;
     top: 0; left: 0;
     width: 100vw; height: 100vh;
-    z-index: 5; /* Sit above map, but below marker pane */
+    z-index: 5;
     pointer-events: none;
     
-    background-color: rgba(255, 255, 255, 0.4); 
+    /* We leave the background-color empty here because JS will inject a Gradient */
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
-
-    /* NEW MASK LOGIC: 
-       Everything from 0 to 'pixelRadius' is TRANSPARENT (Clear).
-       Everything after that is BLACK (Show Blur). 
-    */
-    mask-image: radial-gradient(circle, transparent 100%, black 100%);
-    -webkit-mask-image: radial-gradient(circle, transparent 100%, black 100%);
 }
 
 #ui {
