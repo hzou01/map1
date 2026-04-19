@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>URBAN PROBE | Open Source Build</title>
+    <title>URBAN PROBE | Shortbread Sim</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -12,32 +12,30 @@
         body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #fff; }
         #map { position: absolute; width: 100%; height: 100%; z-index: 1; }
 
-        /* THE TRICK: This CSS turns the colorful standard OSM map 
-           into a clean, architectural "Shortbread" style manually. */
+        /* THE SHORTBREAD SIMULATION FILTER */
         .leaflet-tile-container {
-            filter: grayscale(100%) brightness(1.05) contrast(0.8) opacity(0.9);
+            filter: sepia(0.2) brightness(1.1) contrast(1.1) saturate(0.4) hue-rotate(-10deg);
         }
 
-        /* Your Glassmorphism UI */
+        /* Your Polished UI */
         #ui {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
             width: 270px; padding: 25px;
-            background: rgba(255, 255, 255, 0.75); 
+            background: rgba(255, 255, 255, 0.72); 
             backdrop-filter: blur(15px) saturate(160%);
             -webkit-backdrop-filter: blur(15px) saturate(160%);
             border: 1px solid rgba(0, 0, 0, 0.08);
             border-top: 1px solid rgba(255, 255, 255, 0.4);
             border-radius: 16px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-            font-family: -apple-system, sans-serif;
             color: #1a1a1a;
+            font-family: -apple-system, sans-serif;
         }
 
-        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.4; text-transform: uppercase; margin: 0 0 15px 0; }
-        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 10px 0; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 4px;}
-        button { width: 100%; padding: 12px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px; }
+        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
+        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 5px; }
+        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px;}
         
-        /* Clean Map UI */
         .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
     </style>
 </head>
@@ -50,22 +48,17 @@
     <div class="stat"><span>LAT:</span> <span id="lat">41.824</span></div>
     <div class="stat"><span>LNG:</span> <span id="lng">-71.412</span></div>
     <div class="stat"><span>ALT:</span> <span id="ele">-- m</span></div>
-    <button id="start-btn">INITIALIZE SENSORS</button>
+    <button id="start-btn">INITIALIZE PROBE</button>
 </div>
 
 <script>
-    let map, marker, synth, audioOn = false;
+    let map, marker, synth, audioActive = false;
 
     function init() {
-        // Initialize Map
         map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 16);
 
-        // DIRECT OPEN STREET MAP (No API Key Required)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19
-        }).addTo(map);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-        // Hardware Probe
         marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
         marker.on('drag', (e) => {
@@ -79,13 +72,11 @@
             fetchData(p.lat, p.lng);
         });
 
-        // Audio Engine
         document.getElementById('start-btn').onclick = async () => {
             await Tone.start();
-            synth = new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination();
-            document.getElementById('start-btn').innerText = "SYSTEM ONLINE";
-            document.getElementById('start-btn').style.opacity = 0.5;
-            audioOn = true;
+            synth = new Tone.MonoSynth().toDestination();
+            document.getElementById('start-btn').innerText = "ONLINE";
+            audioActive = true;
         };
     }
 
@@ -95,8 +86,8 @@
             const data = await res.json();
             const val = data.results[0].elevation;
             document.getElementById('ele').innerText = Math.round(val) + "m";
-            if (audioOn && synth) synth.triggerAttackRelease(200 + val, "4n");
-        } catch(e) { console.log("API check..."); }
+            if (audioActive && synth) synth.triggerAttackRelease(200 + val, "4n");
+        } catch(e) { console.log("Data probe..."); }
     }
 
     window.onload = init;
