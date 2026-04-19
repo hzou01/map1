@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Urban Probe | Sound Map</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div id="ui-container">
+        <h1>URBAN PROBE v1.0</h1>
+        <div class="stats">
+            <p>LAT/LNG: <span id="coords">0.00, 0.00</span></p>
+            <p>ELEVATION: <span id="ele">0m</span></p>
+        </div>
+        <input type="range" id="radius-slider" min="100" max="1000" value="500">
+        <label for="radius-slider">PROBE RADIUS</label>
+        <button id="start-audio">ENABLE AUDIO</button>
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places"></script>
+    <script src="script.js"></script>
+</body>
+</html>
