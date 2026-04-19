@@ -1,63 +1,49 @@
-/* Reset & Layout */
-body, html { 
-    margin: 0; padding: 0; 
-    width: 100%; height: 100%; 
-    overflow: hidden; 
-    background: #fff;
-}
+body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; }
 
 #map { 
     position: absolute; 
     width: 100vw; height: 100vh; 
-    z-index: 1;
+    z-index: 1; 
 }
 
-/* THE PROBE LENS EFFECT */
 #probe-overlay {
     position: absolute;
     top: 0; left: 0;
     width: 100vw; height: 100vh;
-    z-index: 5;
-    pointer-events: none; /* Clicks go through to the map */
+    z-index: 10; /* Sits between map (1) and UI (1000) */
+    pointer-events: none;
     
-    /* White 50% Overlay + Blur */
-    background-color: rgba(255, 255, 255, 0.5); 
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
+    background-color: rgba(255, 255, 255, 0.4); 
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
 
-    /* The 'Hole' Logic */
-    -webkit-mask-image: radial-gradient(circle 100px at center, transparent 100%, black 100%);
-    mask-image: radial-gradient(circle 100px at center, transparent 100%, black 100%);
+    /* The Mask Logic: Define a circle that will be 'cut out' */
+    mask-image: radial-gradient(circle, black 100%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle, black 100%, transparent 100%);
     
-    /* Compositing the mask so 'transparent' becomes the cutout */
-    -webkit-mask-composite: destination-out;
+    /* SUBTRACT the circle from the background */
     mask-composite: exclude;
+    -webkit-mask-composite: destination-out;
 }
 
-/* Glassmorphism UI */
 #ui {
     position: absolute; 
     top: 25px; left: 25px; 
     z-index: 1000;
     width: 270px; padding: 25px;
-    background: rgba(255, 255, 255, 0.8); 
+    background: rgba(255, 255, 255, 0.85); 
     backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(0, 0, 0, 0.05);
     border-radius: 18px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-    color: #1a1a1a;
     font-family: -apple-system, sans-serif;
 }
 
 h1 { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; margin: 0 0 20px 0; opacity: 0.5; }
-
 .slider-header { display: flex; justify-content: space-between; align-items: baseline; }
 #radius-display { font-family: monospace; font-size: 13px; font-weight: bold; min-width: 60px; text-align: right; }
 .label { font-size: 9px; font-weight: bold; opacity: 0.4; text-transform: uppercase; }
-
 input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; cursor: ew-resize; }
 button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; border-radius: 10px; margin-top: 20px; cursor: pointer; }
 
-/* Clean Map View */
 .leaflet-control-container { display: none !important; }
