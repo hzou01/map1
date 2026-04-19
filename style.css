@@ -1,4 +1,4 @@
-/* Global Reset */
+/* 1. Reset */
 body, html { 
     margin: 0; padding: 0; 
     width: 100%; height: 100%; 
@@ -6,15 +6,18 @@ body, html {
     background: #f0f0f0; 
 }
 
-/* Standard Map - No filters, no masks */
+/* 2. Map - Standard Engine */
 #map { 
     position: absolute; 
     width: 100vw; 
     height: 100vh; 
     z-index: 1;
+    /* Hardware acceleration fix for Chrome */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
 }
 
-/* UI - Clean Light Glass */
+/* 3. Glass UI */
 #ui {
     position: absolute; 
     top: 25px; 
@@ -26,37 +29,46 @@ body, html {
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
     border: 1px solid rgba(0, 0, 0, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.6);
     border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08);
     color: #1a1a1a;
-    font-family: -apple-system, system-ui, sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 h1 { 
     font-size: 10px; 
-    letter-spacing: 2px; 
+    letter-spacing: 2.5px; 
+    opacity: 0.5; 
     text-transform: uppercase; 
     margin: 0 0 20px 0; 
-    opacity: 0.6; 
 }
 
 .stat { 
     display: flex; 
     justify-content: space-between; 
-    font-family: monospace; 
+    font-family: "SF Mono", "Roboto Mono", monospace; 
     margin: 12px 0; 
-    font-size: 14px; 
-    border-bottom: 1px solid rgba(0,0,0,0.05);
-    padding-bottom: 5px;
+    font-size: 13px; 
+    border-bottom: 1px solid rgba(0,0,0,0.05); 
+    padding-bottom: 6px; 
 }
 
-.label { font-size: 9px; font-weight: bold; opacity: 0.4; }
+.label { 
+    font-size: 9px; 
+    opacity: 0.4; 
+    text-transform: uppercase; 
+    font-weight: bold; 
+}
+
+/* 4. Controls */
+.control-group { margin-top: 25px; }
 
 input[type=range] { 
     width: 100%; 
-    margin-top: 15px; 
+    margin-top: 12px; 
     accent-color: #000; 
-    cursor: pointer;
+    cursor: ew-resize; 
 }
 
 button { 
@@ -67,9 +79,13 @@ button {
     border: none; 
     font-weight: bold; 
     cursor: pointer; 
-    border-radius: 8px; 
-    margin-top: 15px;
+    border-radius: 10px; 
+    margin-top: 20px;
+    transition: transform 0.1s;
 }
 
-/* Hide Leaflet UI Elements */
+button:active { transform: scale(0.98); }
+button:disabled { opacity: 0.5; cursor: default; }
+
+/* Hide Leaflet Branding */
 .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
