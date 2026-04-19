@@ -2,24 +2,31 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URBAN PROBE | Shortbread Edition</title>
+    <title>URBAN PROBE | Shortbread v2.0</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.0.19/leaflet-maplibre-gl.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #fff; overflow: hidden; font-family: sans-serif; }
         
-        /* Map Container */
-        #map { position: absolute; width: 100vw; height: 100vh; z-index: 1; background: #f0f0f0; }
+        /* Fixed Map Container */
+        #map { 
+            position: absolute; 
+            top: 0; left: 0; bottom: 0; right: 0;
+            width: 100vw; height: 100vh; 
+            display: block;
+            z-index: 1; 
+            background: #eee; 
+        }
 
-        /* Industrial Frosted UI */
+        /* Frosted Glass UI */
         #ui {
-            position: absolute; top: 30px; left: 30px; z-index: 100;
+            position: absolute; top: 30px; left: 30px; z-index: 999;
             width: 260px; padding: 25px;
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(15px) saturate(160%);
@@ -27,22 +34,15 @@
             border: 1px solid rgba(0, 0, 0, 0.08);
             border-radius: 12px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.06);
-            color: #1a1a1a;
-            pointer-events: auto;
         }
 
         h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
         .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; }
         .label { font-size: 9px; opacity: 0.4; text-transform: uppercase; font-weight: bold; }
-
-        button { 
-            width: 100%; padding: 12px; background: #000; color: #fff; border: none; 
-            font-weight: bold; cursor: pointer; border-radius: 6px; margin-top: 15px;
-        }
-        
+        button { width: 100%; padding: 12px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 6px; margin-top: 15px;}
         input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; }
-
-        /* Hide Default Map UI */
+        
+        /* Clear Leaflet visual clutter */
         .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
     </style>
 </head>
@@ -54,12 +54,74 @@
         <h1>Urban Probe Sensor</h1>
         <div class="stat"><span class="label">Pos:</span> <span id="coords">DRAG PIN</span></div>
         <div class="stat"><span class="label">Elev:</span> <span id="ele">-- m</span></div>
-        
         <input type="range" id="radius" min="100" max="2000" value="500">
-        
         <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        let map, marker, circle, synth;
+        let isAudioOn = false;
+
+        function init() {
+            // Setup Map
+            map = L.map('map', { 
+                zoomControl: false,
+                attributionControl: false,
+                fadeAnimation: false // Prevents standard tiles from ghosting
+            }).setView([41.8245, -71.4128], 15);
+
+            // FORCE SHORTBREAD PRESET
+            // If this line is the ONLY layer, the default map cannot show up.
+            const shortbread = L.maplibreGL({
+                style: 'https://tiles.shortbread-tiles.org/styles/shortbread-light.json',
+                pane: 'tilePane',
+                interactive: true
+            }).addTo(map);
+
+            // Hardware Marker
+            marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
+
+            // Radius Circle
+            circle = L.circle([41.8245, -71.4128], { 
+                radius: 500, color: '#000', weight: 1, fillOpacity: 0.05 
+            }).addTo(map);
+
+            // Update UI
+            marker.on('drag', (e) => {
+                const p = e.target.getLatLng();
+                circle.setLatLng(p);
+                document.getElementById('coords').innerText = p.lat.toFixed(4) + ", " + p.lng.toFixed(4);
+            });
+
+            // Elevation + Audio
+            marker.on('dragend', async (e) => {
+                const p = e.target.getLatLng();
+                try {
+                    const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${p.lat},${p.lng}`);
+                    const data = await res.json();
+                    const val = data.results[0].elevation;
+                    document.getElementById('ele').innerText = Math.round(val) + "m";
+                    if (isAudioOn && synth) synth.triggerAttackRelease(200 + val, "2n");
+                } catch(err) { console.log("API Busy"); }
+            });
+
+            // Audio Activation
+            document.getElementById('start-btn').onclick = async () => {
+                await Tone.start();
+                synth = new Tone.MonoSynth({
+                    oscillator: { type: "sine" },
+                    envelope: { attack: 0.1, release: 2 }
+                }).toDestination();
+                document.getElementById('start-btn').innerText = "ONLINE";
+                document.getElementById('start-btn').style.opacity = "0.5";
+                isAudioOn = true;
+            };
+
+            // Force map to acknowledge its container after the browser finishes painting
+            setTimeout(() => { map.invalidateSize(); }, 1000);
+        }
+
+        window.onload = init;
+    </script>
 </body>
 </html>
