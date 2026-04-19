@@ -32,11 +32,10 @@
         </div>
         
         <div class="control-group">
-            <div style="display: flex; justify-content: space-between;">
-                <span class="label">Probe Radius</span>
-                <span id="radius-display" style="font-family: monospace; font-size: 11px; font-weight: bold;">400m</span>
-            </div>
-            <input type="range" id="radius-slider" min="400" max="5000" value="400">
+        <div class="slider-header">
+        <span class="label">Probe Radius</span>
+        <span id="radius-display"></span> </div>
+         <input type="range" id="radius-slider" min="400" max="20000" value="400">
         </div>
 
         <button id="start-btn">INITIALIZE SENSORS</button>

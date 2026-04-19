@@ -62,11 +62,28 @@ h1 {
 }
 
 /* 4. Controls */
-.control-group { margin-top: 25px; }
+.control-group { 
+    margin-top: 25px; 
+}
+
+.slider-header {
+    display: flex; 
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+#radius-display {
+    font-family: "SF Mono", "Roboto Mono", monospace; 
+    font-size: 12px; 
+    font-weight: bold;
+    color: #000;
+    min-width: 60px; /* Space for "20.0km" without shifting */
+    text-align: right;
+}
 
 input[type=range] { 
     width: 100%; 
-    margin-top: 12px; 
     accent-color: #000; 
     cursor: ew-resize; 
 }
