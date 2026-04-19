@@ -7,14 +7,11 @@ body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 /* Optimized for contrast: Parks and Water will pop more */
 .leaflet-tile-container {
     filter: 
-        grayscale(100%)    /* Strips the distracting primary colors */
-        brightness(1.15)   /* Keeps the background from feeling muddy */
-        contrast(1.3)      /* Makes water (darker) and parks (mid) stand out from roads (light) */
-        opacity(0.9);      /* Keeps it light enough for your glass UI */
-}
-
-.leaflet-marker-icon {
-    filter: hue-rotate(150deg) brightness(0.5); /* Shifts it to a dark industrial teal/black */
+        sepia(0.2)          /* Gives the land that warm, Shortbread "cream" tone */
+        brightness(1.1)     /* Keeps the overall map light and architectural */
+        contrast(1.1)       /* Ensures roads and buildings stay crisp */
+        saturate(0.4)       /* Cools down the colors so they aren't "loud" */
+        hue-rotate(-10deg); /* Shifts the greens and blues to a more sophisticated tone */
 }
 
 /* 3. The Shortbread-Match UI */
