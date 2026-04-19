@@ -13,25 +13,20 @@ body, html {
 
 #frost-layer {
     position: absolute;
-    /* Massive overscan to ensure no sharp edges on any screen size */
-    top: -100px; 
+    top: -100px;
     left: -100px;
     width: calc(100vw + 200px); 
     height: calc(100vh + 200px);
-    
     z-index: 5;
     pointer-events: none;
     
-    background: rgba(255, 255, 255, 0.4);
+    background: rgba(255, 255, 255, 0.4); /* The "Frost" */
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
 
-    /* The new 'Safari-Friendly' logic */
-    /* We define a 'donut' shape: the big screen rectangle minus a circle */
-    clip-path: polygon(
-        -100% -100%, -100% 200%, 200% 200%, 200% -100%, -100% -100%, 
-        var(--hole-path, circle(400px at 50% 50%))
-    );
+    /* We tell the mask to simply hide the blur where it is transparent */
+    -webkit-mask-image: radial-gradient(circle, transparent 100%, black 100%);
+    mask-image: radial-gradient(circle, transparent 100%, black 100%);
 }
 
 #ui {
