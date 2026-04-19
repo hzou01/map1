@@ -13,23 +13,23 @@ body, html {
 
 #frost-layer {
     position: absolute;
-    /* Overscan to fix the edge-bleeding */
-    top: -50px; 
-    left: -50px;
-    width: calc(100vw + 100px); 
-    height: calc(100vh + 100px);
-    
-    z-index: 5;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 5; /* Above map, below UI */
     pointer-events: none;
     
+    /* The Frosted Glass Effect */
     background: rgba(255, 255, 255, 0.4);
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
 
-    /* Use a standard mask without composite */
-    /* This tells the browser: "Hide the blur where this mask is transparent" */
-    -webkit-mask-image: radial-gradient(circle, transparent 100%, black 100%);
-    mask-image: radial-gradient(circle, transparent 100%, black 100%);
+    /* The Mask: Default to showing everything (black) */
+    mask-image: radial-gradient(circle, black 100%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle, black 100%, transparent 100%);
+    
+    /* Crucial: This defines the 'Hole' logic */
+    mask-composite: exclude;
+    -webkit-mask-composite: destination-out;
 }
 
 #ui {
