@@ -1,25 +1,84 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Urban Probe | Sound Map</title>
-    <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Urban Probe | Geographic Sonification</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Google Sans', sans-serif; background: #000; color: white; }
+        #map { width: 100%; height: 100%; position: absolute; z-index: 1; }
+
+        /* Liquid Glass UI */
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            width: 280px;
+            padding: 24px;
+            background: rgba(20, 20, 20, 0.4);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        h1 { font-size: 12px; letter-spacing: 3px; margin: 0 0 20px 0; color: rgba(255,255,255,0.6); text-transform: uppercase; }
+        .data-point { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px; }
+        .label { opacity: 0.5; font-size: 11px; text-transform: uppercase; }
+
+        input[type=range] { width: 100%; margin-top: 20px; accent-color: #fff; cursor: pointer; }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            border-radius: 8px;
+            border: none;
+            background: #fff;
+            color: #000;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.98); }
+        
+        /* Minimalist Map Fixes */
+        .leaflet-control-attribution { display: none; }
+        .leaflet-bar { border: none !important; box-shadow: none !important; }
+    </style>
 </head>
 <body>
+
     <div id="map"></div>
-    
-    <div id="ui-container">
-        <h1>URBAN PROBE v1.0</h1>
-        <div class="stats">
-            <p>LAT/LNG: <span id="coords">0.00, 0.00</span></p>
-            <p>ELEVATION: <span id="ele">0m</span></p>
+
+    <div id="ui-layer">
+        <h1>Urban Probe Sensor</h1>
+        <div class="data-point">
+            <span class="label">Coordinates</span>
+            <span id="coords">41.82, -71.41</span>
         </div>
-        <input type="range" id="radius-slider" min="100" max="1000" value="500">
-        <label for="radius-slider">PROBE RADIUS</label>
-        <button id="start-audio">ENABLE AUDIO</button>
+        <div class="data-point">
+            <span class="label">Topography</span>
+            <span id="ele">-- m</span>
+        </div>
+        
+        <input type="range" id="radius-slider" min="100" max="2000" value="500">
+        <p class="label" style="margin-top: 5px;">Probe Radius</p>
+
+        <button id="audio-btn">INITIALIZE PROBE</button>
     </div>
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&libraries=places"></script>
     <script src="script.js"></script>
 </body>
 </html>
