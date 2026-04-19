@@ -27,19 +27,22 @@ function init() {
     const pixelRadius = radiusMeters / metersPerPixel;
 
     /**
-     * THE STABLE CLIP-PATH:
-     * We calculate the position relative to the frost-layer (which is shifted by -100px)
+     * THE ALIGNMENT FIX:
+     * We add 100 to x and y because the CSS moved the div by -100px.
      */
-    const holeX = centerPoint.x + 100;
+    const holeX = centerPoint.x + 100; 
     const holeY = centerPoint.y + 100;
 
-    // Use setProperty to update the hole position and size
-    // We use 'evenodd' logic to tell the browser this is a cutout
-    frost.style.setProperty('--hole-path', `circle(${pixelRadius}px at ${holeX}px ${holeY}px)`);
-    
-    // Standardizing the clip-path for cross-browser support
-    frost.style.clipPath = `path('M 0 0 H ${window.innerWidth + 200} V ${window.innerHeight + 200} H 0 Z M ${holeX} ${holeY} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0')`;
-    frost.style.webkitClipPath = frost.style.clipPath;
+    // The dimensions of the overscanned frost layer
+    const layerW = window.innerWidth + 200;
+    const layerH = window.innerHeight + 200;
+
+    // SVG Path: M (Move to 0,0) H (Horizontal line to width) V (Vertical to height) H (Horizontal back to 0) Z (Close box)
+    // Then the 'm' (relative move) and 'a' (arc) draw the circular hole inside the box.
+    const fullPath = `M 0 0 H ${layerW} V ${layerH} H 0 Z M ${holeX} ${holeY} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
+
+    frost.style.webkitClipPath = `path('${fullPath}')`;
+    frost.style.clipPath = `path('${fullPath}')`;
 }
 
     // 3. Listeners
