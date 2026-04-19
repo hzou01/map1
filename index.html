@@ -2,154 +2,91 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URBAN PROBE</title>
+    <title>URBAN PROBE | Final Open Build</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        /* Global Setup */
-        body, html { 
-            margin: 0; padding: 0; width: 100vw; height: 100vh; 
-            background: #f0f0f0; overflow: hidden; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-        }
-
-        /* Map Container */
-        #map { 
-            position: absolute; top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            z-index: 1; background: #eee; 
-        }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #fff; overflow: hidden; font-family: sans-serif; }
+        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
 
         /* Your Glassmorphism UI */
         #ui {
-            position: absolute; 
-            top: 25px; 
-            left: 25px; 
-            z-index: 1000;
-            width: 270px; 
-            max-width: calc(100vw - 50px);
-            padding: 25px;
-            
-            /* Glass Effect */
+            position: absolute; top: 25px; left: 25px; z-index: 1000;
+            width: 270px; padding: 25px;
             background: rgba(255, 255, 255, 0.72); 
             backdrop-filter: blur(15px) saturate(160%);
             -webkit-backdrop-filter: blur(15px) saturate(160%);
-            
-            /* Industrial Edge Lighting */
-            border: 1px solid rgba(0, 0, 0, 0.05);
+            border: 1px solid rgba(0, 0, 0, 0.08);
             border-top: 1px solid rgba(255, 255, 255, 0.4);
             border-radius: 16px;
-            
-            box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), 0 2px 2px rgba(0, 0, 0, 0.02);
+            box-shadow: 0 4px 24px rgba(0,0,0,0.06);
             color: #1a1a1a;
-            pointer-events: auto;
         }
 
         h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
-        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 5px; }
-        .label { font-size: 9px; opacity: 0.4; text-transform: uppercase; font-weight: bold; font-family: sans-serif; }
-
-        button { 
-            width: 100%; padding: 14px; background: #000; color: #fff; border: none; 
-            font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px;
-            transition: transform 0.1s;
-        }
-        button:active { transform: scale(0.98); }
-        
-        input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; }
-
-        /* Hide Default UI */
+        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 5px;}
+        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px;}
         .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
     </style>
 </head>
 <body>
 
-    <div id="map"></div>
+<div id="map"></div>
 
-    <div id="ui">
-        <h1>Urban Probe Sensor</h1>
-        <div class="stat"><span class="label">Pos:</span> <span id="coords">41.824, -71.412</span></div>
-        <div class="stat"><span class="label">Ele:</span> <span id="ele">-- m</span></div>
-        
-        <input type="range" id="radius" min="100" max="2000" value="500">
-        
-        <button id="start-btn">INITIALIZE AUDIO</button>
-    </div>
+<div id="ui">
+    <h1>Urban Probe Sensor</h1>
+    <div class="stat"><span>POS:</span> <span id="pos">41.824, -71.412</span></div>
+    <div class="stat"><span>ELE:</span> <span id="ele">-- m</span></div>
+    <button id="start-btn">INITIALIZE AUDIO</button>
+</div>
 
-    <script>
-        let map, marker, circle, synth, audioActive = false;
+<script>
+    let map, marker, synth, audioActive = false;
 
-        function init() {
-            // 1. Initialize Map
-            map = L.map('map', { 
-                zoomControl: false, 
-                attributionControl: false 
-            }).setView([41.8245, -71.4128], 15);
+    function init() {
+        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
 
-            // 2. Load Shortbread Raster Layer (Alidade Smooth)
-            // This is the direct image-based version of Shortbread.
-            L.tileLayer('https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', {
-                maxZoom: 20
-            }).addTo(map);
+        // THE "DIRECT" OPEN SOURCE LAYER (No API Key Required)
+        // This is the cleanest monotone map available for Leaflet.
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
 
-            // 3. Add Industrial Marker
-            // Custom icon styling can be added later
-            marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
+        marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
-            // 4. Circle Overlay
-            circle = L.circle([41.8245, -71.4128], { 
-                radius: 500, color: '#000', weight: 1, fillOpacity: 0.03 
-            }).addTo(map);
+        marker.on('drag', (e) => {
+            const p = e.target.getLatLng();
+            document.getElementById('pos').innerText = p.lat.toFixed(3) + ", " + p.lng.toFixed(3);
+        });
 
-            // 5. Interaction
-            marker.on('drag', (e) => {
-                const p = e.target.getLatLng();
-                circle.setLatLng(p);
-                document.getElementById('coords').innerText = p.lat.toFixed(3) + ", " + p.lng.toFixed(3);
-            });
+        marker.on('dragend', (e) => {
+            const p = e.target.getLatLng();
+            fetchElevation(p.lat, p.lng);
+        });
 
-            marker.on('dragend', async (e) => {
-                const p = e.target.getLatLng();
-                fetchElevation(p.lat, p.lng);
-            });
+        document.getElementById('start-btn').onclick = async () => {
+            await Tone.start();
+            synth = new Tone.MonoSynth().toDestination();
+            document.getElementById('start-btn').innerText = "ONLINE";
+            audioActive = true;
+        };
+    }
 
-            // 6. UI Controls
-            document.getElementById('radius').oninput = (e) => {
-                circle.setRadius(e.target.value);
-            };
+    async function fetchElevation(lat, lng) {
+        try {
+            const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
+            const data = await res.json();
+            const val = data.results[0].elevation;
+            document.getElementById('ele').innerText = Math.round(val) + "m";
+            if (audioActive && synth) synth.triggerAttackRelease(200 + val, "4n");
+        } catch(e) { console.log("API limit reached"); }
+    }
 
-            document.getElementById('start-btn').onclick = async () => {
-                await Tone.start();
-                synth = new Tone.MonoSynth({
-                    oscillator: { type: "sine" },
-                    envelope: { attack: 0.1, release: 2 }
-                }).toDestination();
-                document.getElementById('start-btn').innerText = "SENSORS ONLINE";
-                document.getElementById('start-btn').style.opacity = "0.5";
-                audioActive = true;
-            };
-
-            // Fix for map loading size on Mac
-            setTimeout(() => { map.invalidateSize(); }, 500);
-        }
-
-        async function fetchElevation(lat, lng) {
-            try {
-                const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
-                const data = await res.json();
-                const val = data.results[0].elevation;
-                document.getElementById('ele').innerText = Math.round(val) + "m";
-                if (audioActive && synth) {
-                    synth.triggerAttackRelease(200 + val, "2n");
-                }
-            } catch(e) { document.getElementById('ele').innerText = "ERR"; }
-        }
-
-        window.onload = init;
-    </script>
+    window.onload = init;
+</script>
 </body>
 </html>
