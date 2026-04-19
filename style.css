@@ -5,28 +5,31 @@ body, html {
     background: #000;
 }
 
-.map-container {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100vw;
-    height: 100vh;
+#map { 
+    position: absolute; 
+    width: 100vw; height: 100vh; 
+    z-index: 1; 
 }
 
-/* Bottom layer: Crystal Clear */
-#map-sharp { z-index: 1; }
-
-/* Top layer: Blurry and desaturated */
-#map-blur { 
-    z-index: 2; 
-    filter: blur(15px) brightness(1.1) saturate(0.4);
-    -webkit-filter: blur(15px) brightness(1.1) saturate(0.4);
+#frost-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 5; /* Above map, below UI */
     pointer-events: none;
+    
+    /* The Frosted Glass Effect */
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
 
-    /* ADD THESE TWO LINES: */
-    -webkit-mask-size: 100% 100%;
-    mask-size: 100% 100%;
-    -webkit-mask-repeat: no-repeat;
-    mask-repeat: no-repeat;
+    /* The Mask: Default to showing everything (black) */
+    mask-image: radial-gradient(circle, black 100%, transparent 100%);
+    -webkit-mask-image: radial-gradient(circle, black 100%, transparent 100%);
+    
+    /* Crucial: This defines the 'Hole' logic */
+    mask-composite: exclude;
+    -webkit-mask-composite: destination-out;
 }
 
 #ui {
@@ -50,5 +53,4 @@ h1 { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; margin: 
 input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; cursor: ew-resize; }
 button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; border-radius: 10px; margin-top: 20px; cursor: pointer; }
 
-/* Hide Leaflet controls for both maps */
 .leaflet-control-container { display: none !important; }

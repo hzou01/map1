@@ -2,24 +2,20 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>URBAN PROBE | Focus Lens</title>
-    
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
-    
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
 <body>
 
-    <div id="map-sharp" class="map-container"></div>
+    <div id="map"></div>
     
-    <div id="map-blur" class="map-container"></div>
+    <div id="frost-layer"></div>
 
     <div id="ui">
         <h1>Urban Probe System</h1>
-        
         <div class="control-group">
             <div class="slider-header">
                 <span class="label">Probe Radius</span>
@@ -27,7 +23,6 @@
             </div>
             <input type="range" id="radius-slider" min="400" max="20000" value="400">
         </div>
-
         <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
 
