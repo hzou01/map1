@@ -1,39 +1,75 @@
-body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+/* Global Reset */
+body, html { 
+    margin: 0; padding: 0; 
+    width: 100%; height: 100%; 
+    overflow: hidden; 
+    background: #f0f0f0; 
+}
 
+/* Standard Map - No filters, no masks */
 #map { 
     position: absolute; 
     width: 100vw; 
     height: 100vh; 
+    z-index: 1;
 }
 
-/* THE EFFECT: Apply B&W to the tiles, but prepare a mask */
-.leaflet-tile-container {
-    filter: grayscale(100%) brightness(0.5) contrast(1.2);
-    /* This tells the browser: Only show the B&W filter WHERE THE MASK IS BLACK */
-    -webkit-mask-image: radial-gradient(circle 150px at center, transparent 100%, black 100%);
-    mask-image: radial-gradient(circle 150px at center, transparent 100%, black 100%);
-}
-
-/* UI - Kept your sleek dark glass look */
+/* UI - Clean Light Glass */
 #ui {
-    position: absolute; top: 25px; left: 25px; z-index: 1000;
-    width: 260px; padding: 25px;
-    background: rgba(20, 20, 20, 0.8);
+    position: absolute; 
+    top: 25px; 
+    left: 25px; 
+    z-index: 1000;
+    width: 270px; 
+    padding: 25px;
+    background: rgba(255, 255, 255, 0.85); 
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
-    border: 1px solid rgba(255,255,255,0.1);
+    border: 1px solid rgba(0, 0, 0, 0.05);
     border-radius: 16px;
-    color: #fff;
-    font-family: -apple-system, sans-serif;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    color: #1a1a1a;
+    font-family: -apple-system, system-ui, sans-serif;
 }
 
-.stat { display: flex; justify-content: space-between; margin: 12px 0; font-family: monospace; opacity: 0.9; }
-.label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; opacity: 0.5; }
+h1 { 
+    font-size: 10px; 
+    letter-spacing: 2px; 
+    text-transform: uppercase; 
+    margin: 0 0 20px 0; 
+    opacity: 0.6; 
+}
+
+.stat { 
+    display: flex; 
+    justify-content: space-between; 
+    font-family: monospace; 
+    margin: 12px 0; 
+    font-size: 14px; 
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+    padding-bottom: 5px;
+}
+
+.label { font-size: 9px; font-weight: bold; opacity: 0.4; }
+
+input[type=range] { 
+    width: 100%; 
+    margin-top: 15px; 
+    accent-color: #000; 
+    cursor: pointer;
+}
+
 button { 
-    width: 100%; padding: 14px; background: #fff; color: #000; 
-    border: none; border-radius: 8px; font-weight: bold; cursor: pointer; 
-    margin-top: 10px;
+    width: 100%; 
+    padding: 14px; 
+    background: #000; 
+    color: #fff; 
+    border: none; 
+    font-weight: bold; 
+    cursor: pointer; 
+    border-radius: 8px; 
+    margin-top: 15px;
 }
-input[type=range] { width: 100%; accent-color: #fff; margin-top: 10px; }
 
-.leaflet-control-container { display: none; }
+/* Hide Leaflet UI Elements */
+.leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
