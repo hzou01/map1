@@ -13,28 +13,32 @@ function init() {
     // 2. Add Marker (Put it in the markerPane so it stays on top)
     marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
-    function syncProbe() {
-        const radiusMeters = parseInt(slider.value);
-        const markerLatLng = marker.getLatLng();
-        
-        // Update Text
-        display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1) + "km" : radiusMeters + "m";
+   function syncProbe() {
+    const radiusMeters = parseInt(slider.value);
+    const markerLatLng = marker.getLatLng();
+    
+    display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1) + "km" : radiusMeters + "m";
 
-        // Calculate Pixel Radius
-        const centerPoint = map.latLngToContainerPoint(markerLatLng);
-        
-        // Calculate dynamic pixels-per-meter at current zoom
-        const lat = markerLatLng.lat;
-        const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom());
-        const pixelRadius = radiusMeters / metersPerPixel;
+    const centerPoint = map.latLngToContainerPoint(markerLatLng);
+    
+    // Precise meter-to-pixel conversion
+    const lat = markerLatLng.lat;
+    const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+    const pixelRadius = radiusMeters / metersPerPixel;
 
-        // Apply Mask to the Frost Layer
-        // We use a Hard Stop (99% to 100%) for a clean edge
-        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, black 99%, transparent 100%)`;
-        
-        frost.style.webkitMaskImage = mask;
-        frost.style.maskImage = mask;
-    }
+    /**
+     * THE STABLE "CLEAR CENTER" LOGIC:
+     * We make it 100% transparent from the center to the edge of the radius.
+     * Then we make it solid black for the rest of the screen.
+     */
+    const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, 
+                  transparent 0px, 
+                  transparent ${pixelRadius}px, 
+                  black ${pixelRadius + 1}px)`;
+    
+    frost.style.webkitMaskImage = mask;
+    frost.style.maskImage = mask;
+}
 
     // 3. Listeners
     slider.oninput = syncProbe;
