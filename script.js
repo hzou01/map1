@@ -2,15 +2,17 @@ let map, marker, circle, synth;
 let isAudioActive = false;
 
 function init() {
-    // 1. Initialize Map (Normal OSM tiles)
+    // 1. Setup Map - Using standard Leaflet engine (Stable & Normal)
     map = L.map('map', { 
-        zoomControl: false, 
-        attributionControl: false 
+        zoomControl: false,
+        attributionControl: false
     }).setView([41.8245, -71.4128], 16);
 
+    // 2. THE FIX: Load standard OpenStreetMap tiles
+    // This will work immediately without any API keys or 401 errors.
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    // 2. White Hardware Marker
+    // 3. Hardware Marker (White for contrast)
     const whiteIcon = L.icon({
         iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-white.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
@@ -24,22 +26,21 @@ function init() {
         icon: whiteIcon 
     }).addTo(map);
 
-    // 3. Sensory Region Circle
-    circle = L.circle([41.8245, -71.4128], {
-        radius: 400,
-        color: '#fff',
-        weight: 1,
-        dashArray: '5, 10',
+    // 4. Sound Radius Circle (Controlled by the Slider)
+    circle = L.circle([41.8245, -71.4128], { 
+        radius: 400, 
+        color: 'white', 
+        weight: 1, 
+        dashArray: '5, 10', // Dashed line for a technical probe look
         fillOpacity: 0.1,
-        fillColor: '#fff'
+        fillColor: 'white'
     }).addTo(map);
 
-    // 4. Slider Connection
+    // 5. Interaction Logic
     document.getElementById('radius-slider').oninput = (e) => {
         circle.setRadius(e.target.value);
     };
 
-    // 5. Interaction Listeners
     marker.on('drag', (e) => {
         const p = e.target.getLatLng();
         circle.setLatLng(p);
@@ -48,10 +49,11 @@ function init() {
     });
 
     marker.on('dragend', (e) => {
-        fetchElevation(e.target.getLatLng());
+        const p = e.target.getLatLng();
+        fetchElevation(p.lat, p.lng);
     });
 
-    // 6. Audio Start
+    // 6. Audio Setup
     document.getElementById('start-btn').onclick = async () => {
         await Tone.start();
         synth = new Tone.MonoSynth({
@@ -65,21 +67,22 @@ function init() {
     };
 }
 
-async function fetchElevation(pos) {
+async function fetchElevation(lat, lng) {
     try {
-        const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${pos.lat},${pos.lng}`);
+        const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
         const data = await res.json();
-        const ele = Math.round(data.results[0].elevation);
+        const val = data.results[0].elevation;
         
-        document.getElementById('ele').innerText = ele + "m";
+        document.getElementById('ele').innerText = Math.round(val) + "m";
         
         if (isAudioActive && synth) {
-            // Mapping elevation to frequency (Lower elevation = Deeper drone)
-            synth.triggerAttackRelease(150 + ele, "2n");
+            // Map elevation to frequency
+            synth.triggerAttackRelease(150 + val, "2n");
         }
     } catch(err) {
-        document.getElementById('ele').innerText = "ERROR";
+        document.getElementById('ele').innerText = "DATA LAG";
     }
 }
 
+// Initial fire
 window.onload = init;

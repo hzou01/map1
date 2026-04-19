@@ -10,6 +10,8 @@
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    
+    <script src="script.js" defer></script>
 </head>
 <body>
 
@@ -19,26 +21,25 @@
         <h1>Urban Probe Sensor</h1>
         
         <div class="stat">
-            <span class="label">LAT</span>
+            <span class="label">Latitude</span>
             <span id="lat">41.8245</span>
         </div>
         <div class="stat">
-            <span class="label">LNG</span>
+            <span class="label">Longitude</span>
             <span id="lng">-71.4128</span>
         </div>
         <div class="stat">
-            <span class="label">ALT</span>
+            <span class="label">Elevation</span>
             <span id="ele">-- m</span>
         </div>
         
         <div class="control-group">
-            <span class="label">Probe Radius</span>
-            <input type="range" id="radius-slider" min="100" max="2000" value="400">
+            <span class="label">Sound Radius</span>
+            <input type="range" id="radius-slider" min="50" max="1500" value="400">
         </div>
 
         <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
 
-    <script src="script.js"></script>
 </body>
 </html>
