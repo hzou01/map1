@@ -1,23 +1,16 @@
 let map, marker, probeCircle;
-let synth, lfo, filter;
+let synth;
 let isAudioStarted = false;
 
-// 1. Initialize Sound Engine
+// 1. Initialize Sound (Tone.js)
 const audioBtn = document.getElementById('audio-btn');
 audioBtn.addEventListener('click', async () => {
     if (!isAudioStarted) {
         await Tone.start();
-        
-        // A soft, "atmospheric" synth setup
-        filter = new Tone.Filter(800, "lowpass").toDestination();
-        lfo = new Tone.LFO("4n", 400, 1200).connect(filter.frequency).start();
-        
-        synth = new Tone.PolySynth(Tone.Synth, {
+        synth = new Tone.MonoSynth({
             oscillator: { type: "sine" },
-            envelope: { attack: 0.1, release: 1 }
-        }).connect(filter);
-        
-        synth.volume.value = -12;
+            envelope: { attack: 0.1, release: 2 }
+        }).toDestination();
         
         isAudioStarted = true;
         audioBtn.innerText = "PROBE ACTIVE";
@@ -26,76 +19,59 @@ audioBtn.addEventListener('click', async () => {
     }
 });
 
-// 2. Initialize Map (Leaflet - Open Source)
+// 2. Initialize Leaflet Map (NO GOOGLE REQUIRED)
 function initMap() {
-    // Center on Providence
+    // Starting coordinates (Providence)
     const startPos = [41.8245, -71.4128];
-    
-    map = L.map('map', {
-        zoomControl: false,
-        attributionControl: false
-    }).setView(startPos, 15);
 
-    // Using a "CartoDB Dark Matter" tile for a sleek industrial look
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19
-    }).addTo(map);
+    // Create the map object
+    map = L.map('map', { zoomControl: false }).setView(startPos, 14);
 
-    // Draggable Marker
+    // Use a FREE Open-Source map style (CartoDB Dark)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png').addTo(map);
+
+    // Add the Draggable Pin
     marker = L.marker(startPos, { draggable: true }).addTo(map);
 
-    // Visual Radius (Liquid Glass style)
+    // Add the "Liquid Glass" Radius
     probeCircle = L.circle(startPos, {
         radius: 500,
         color: 'white',
         weight: 1,
-        fillColor: 'white',
-        fillOpacity: 0.05
+        fillOpacity: 0.1
     }).addTo(map);
 
-    // Sync circle and UI with marker movement
+    // Update UI while dragging
     marker.on('drag', (e) => {
         const pos = e.target.getLatLng();
         probeCircle.setLatLng(pos);
-        document.getElementById('coords').innerText = 
-            `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`;
+        document.getElementById('coords').innerText = `${pos.lat.toFixed(4)}, ${pos.lng.toFixed(4)}`;
     });
 
-    // Run data probe when user lets go
+    // Probe data when dragging stops
     marker.on('dragend', (e) => {
         const pos = e.target.getLatLng();
-        fetchElevation(pos.lat, pos.lng);
+        getElevation(pos.lat, pos.lng);
     });
 }
 
-// 3. Radius Slider Logic
-document.getElementById('radius-slider').addEventListener('input', (e) => {
-    const r = parseInt(e.target.value);
-    if (probeCircle) probeCircle.setRadius(r);
-});
-
-// 4. Free Topography API (Open-Elevation)
-async function fetchElevation(lat, lng) {
+// 3. Get Topography Data
+async function getElevation(lat, lng) {
     try {
-        const response = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
-        const data = await response.json();
+        const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
+        const data = await res.json();
         const ele = data.results[0].elevation;
 
-        document.getElementById('ele').innerText = `${Math.round(ele)} m`;
+        document.getElementById('ele').innerText = Math.round(ele) + "m";
 
-        // Update Sound based on Topography
         if (isAudioStarted) {
-            // Map elevation to frequency: 100m -> C3, 1000m -> C5
-            const freq = Tone.Midi(48 + (ele / 10)).toFrequency();
-            synth.triggerAttackRelease(freq, "2n");
-            
-            // Adjust filter based on height (higher = clearer)
-            filter.frequency.rampTo(Math.max(200, ele * 5), 0.5);
+            // Map height to pitch (e.g., higher ground = higher note)
+            let frequency = 200 + (ele * 0.5); 
+            synth.triggerAttackRelease(frequency, "2n");
         }
-    } catch (error) {
-        console.error("Elevation API unavailable:", error);
+    } catch (err) {
+        console.log("Elevation service timeout, still works without it!");
     }
 }
 
-// Start Map
 initMap();
