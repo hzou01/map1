@@ -1,67 +1,71 @@
-let map, marker, synth;
+let mapSharp, mapBlur, marker, synth;
 let isAudioActive = false;
 
 function init() {
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    const startPos = [41.8245, -71.4128];
+    const mapOptions = { zoomControl: false, attributionControl: false };
+
+    // 1. Initialize both maps
+    mapSharp = L.map('map-sharp', mapOptions).setView(startPos, 15);
+    mapBlur = L.map('map-blur', mapOptions).setView(startPos, 15);
+
+    const tilesUrl = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+    L.tileLayer(tilesUrl).addTo(mapSharp);
+    L.tileLayer(tilesUrl).addTo(mapBlur);
+
+    // 2. Sync Map Movements (If one moves, both move)
+    mapSharp.on('move', () => {
+        mapBlur.setView(mapSharp.getCenter(), mapSharp.getZoom(), { animate: false });
+    });
 
     const slider = document.getElementById('radius-slider');
     const display = document.getElementById('radius-display');
+    const blurMapDiv = document.getElementById('map-blur');
 
-    // Marker sits in a high pane so it is never blurred
-    marker = L.marker([41.8245, -71.4128], { 
+    // 3. Add the Marker to the SHARP map (Z-index 1000 pane)
+    marker = L.marker(startPos, { 
         draggable: true,
-        pane: 'markerPane' 
-    }).addTo(map);
+        zIndexOffset: 1000 
+    }).addTo(mapSharp);
 
     function syncLens() {
-    const slider = document.getElementById('radius-slider');
-    const display = document.getElementById('radius-display');
-    const radiusMeters = parseInt(slider.value);
-    const markerLatLng = marker.getLatLng();
-    
-    // Update Radius Text
-    display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1)+"km" : radiusMeters+"m";
-
-    // Calculate the pixel radius based on current map zoom
-    const centerPoint = map.latLngToContainerPoint(markerLatLng);
-    const edgeLatLng = L.latLng(markerLatLng.lat, markerLatLng.lng + 0.01); 
-    const edgePoint = map.latLngToContainerPoint(edgeLatLng);
-    const pixelsPerDegree = Math.abs(edgePoint.x - centerPoint.x);
-    const metersPerDegree = markerLatLng.distanceTo(edgeLatLng);
-    const pixelRadius = (radiusMeters / metersPerDegree) * pixelsPerDegree;
-
-    // Select the tile layer
-    const tiles = document.querySelector('.leaflet-tile-container');
-    
-    if (tiles) {
-        /**
-         * THE LOGIC:
-         * 0 to pixelRadius: transparent (This kills the blur in the center)
-         * pixelRadius to end: black (This allows the blur to show outside)
-         */
-        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, transparent 99%, black 100%)`;
+        const radiusMeters = parseInt(slider.value);
+        const markerLatLng = marker.getLatLng();
         
-        tiles.style.webkitMaskImage = mask;
-        tiles.style.maskImage = mask;
-    }
-}
+        // Update Text
+        display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1) + "km" : radiusMeters + "m";
 
+        // Calculate Pixel Radius
+        const centerPoint = mapSharp.latLngToContainerPoint(markerLatLng);
+        const edgeLatLng = L.latLng(markerLatLng.lat, markerLatLng.lng + 0.005);
+        const edgePoint = mapSharp.latLngToContainerPoint(edgeLatLng);
+        const pixelsPerDegree = Math.abs(edgePoint.x - centerPoint.x);
+        const metersPerDegree = markerLatLng.distanceTo(edgeLatLng);
+        const pixelRadius = (radiusMeters / metersPerDegree) * pixelsPerDegree;
+
+        // THE PUNCH-HOLE:
+        // We make the blurry map TRANSPARENT inside the radius.
+        const mask = `radial-gradient(circle ${pixelRadius}px at ${centerPoint.x}px ${centerPoint.y}px, transparent 99%, black 100%)`;
+        blurMapDiv.style.webkitMaskImage = mask;
+        blurMapDiv.style.maskImage = mask;
+    }
+
+    // 4. Interaction Events
     slider.oninput = syncLens;
-    map.on('zoom move', syncLens);
+    mapSharp.on('zoom move', syncLens);
     marker.on('drag', syncLens);
 
+    // Force initial render
     setTimeout(syncLens, 200);
 
-    // Audio Init
+    // 5. Audio & Elevation
     document.getElementById('start-btn').onclick = async () => {
         await Tone.start();
         synth = new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination();
         document.getElementById('start-btn').innerText = "SYSTEM ACTIVE";
         isAudioActive = true;
     };
-    
-    // Elevation fetch on dragend
+
     marker.on('dragend', async (e) => {
         const p = e.target.getLatLng();
         try {
@@ -69,7 +73,7 @@ function init() {
             const data = await res.json();
             const ele = Math.round(data.results[0].elevation);
             if (isAudioActive && synth) synth.triggerAttackRelease(140 + ele, "1n");
-        } catch(err) {}
+        } catch(err) { console.warn("API Delay"); }
     });
 }
 
