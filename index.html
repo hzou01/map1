@@ -3,22 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>URBAN PROBE | Sensory Feedback</title>
+    <title>URBAN PROBE | Chromatic Lens</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
     
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
-    
-    <script src="script.js" defer></script>
 </head>
 <body>
 
-    <div id="map"></div>
+    <div id="map-bw" class="map-layer"></div>
+
+    <div id="map-color" class="map-layer"></div>
 
     <div id="ui">
-        <h1>Urban Probe Sensor</h1>
+        <h1>Urban Probe System</h1>
         
         <div class="stat">
             <span class="label">Latitude</span>
@@ -34,12 +34,13 @@
         </div>
         
         <div class="control-group">
-            <span class="label">Sound Radius</span>
-            <input type="range" id="radius-slider" min="50" max="1500" value="400">
+            <span class="label">Probe Lens Radius</span>
+            <input type="range" id="radius-slider" min="50" max="500" value="180">
         </div>
 
         <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
 
+    <script src="script.js"></script>
 </body>
 </html>

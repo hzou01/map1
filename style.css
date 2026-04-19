@@ -1,104 +1,59 @@
-/* 1. Reset */
+/* Reset & Environment */
 body, html { 
     margin: 0; padding: 0; 
     width: 100%; height: 100%; 
     overflow: hidden; 
-    background: #000; /* Dark background for the 'Dark Mode' probe */
+    background: #000; 
 }
 
-/* 2. Map - High Contrast / Dark Aesthetic */
-#map { 
-    position: absolute; 
-    width: 100vw; 
-    height: 100vh; 
-    z-index: 1; 
-    /* This filter creates the 'Normal to Dark' transformation */
-    filter: grayscale(100%) invert(100%) brightness(0.7) contrast(1.5);
-    background: #111;
+.map-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
 }
 
-/* 3. The Glass UI */
+/* 1. The Grayscale Base */
+#map-bw {
+    z-index: 1;
+    filter: grayscale(100%) brightness(0.6) contrast(1.2);
+}
+
+/* 2. The Color Lens (Clipping handled by JS) */
+#map-color {
+    z-index: 2;
+    pointer-events: none; /* Let clicks pass through to the control map */
+}
+
+/* 3. Glassmorphism UI */
 #ui {
     position: absolute; 
-    top: 25px; 
-    left: 25px; 
+    top: 25px; left: 25px; 
     z-index: 1000;
     width: 270px; 
     padding: 25px;
-    
-    /* Tactical Dark Glass */
-    background: rgba(30, 30, 30, 0.75); 
-    backdrop-filter: blur(20px) saturate(160%);
-    -webkit-backdrop-filter: blur(20px) saturate(160%);
-    
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-top: 1px solid rgba(255, 255, 255, 0.25); /* Edge light highlight */
-    border-radius: 16px;
-    
-    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
-    color: #fff;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    
-    text-rendering: optimizeLegibility;
-    -webkit-font-smoothing: antialiased;
+    background: rgba(255, 255, 255, 0.75); 
+    backdrop-filter: blur(15px) saturate(160%);
+    -webkit-backdrop-filter: blur(15px) saturate(160%);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    border-top: 1px solid rgba(255, 255, 255, 0.5);
+    border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    color: #1a1a1a;
+    font-family: -apple-system, sans-serif;
 }
 
-h1 { 
-    font-size: 10px; 
-    letter-spacing: 2.5px; 
-    opacity: 0.5; 
-    text-transform: uppercase; 
-    margin: 0 0 20px 0; 
-}
+h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 15px 0; }
+.stat { display: flex; justify-content: space-between; font-family: monospace; margin: 8px 0; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 4px; }
+.label { font-size: 9px; opacity: 0.4; font-weight: bold; text-transform: uppercase; }
 
-.stat { 
-    display: flex; 
-    justify-content: space-between; 
-    font-family: "SF Mono", "Roboto Mono", monospace; 
-    margin: 12px 0; 
-    font-size: 13px; 
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1); 
-    padding-bottom: 6px; 
-}
-
-.label { 
-    font-size: 9px; 
-    opacity: 0.4; 
-    text-transform: uppercase; 
-    font-weight: bold; 
-}
-
-/* 4. Controls & Slider */
-.control-group { margin-top: 20px; }
-
-input[type=range] { 
-    width: 100%; 
-    margin-top: 12px; 
-    accent-color: #fff; /* High contrast slider thumb */
-    cursor: pointer; 
-}
+input[type=range] { width: 100%; margin-top: 10px; accent-color: #000; cursor: pointer; }
 
 button { 
-    width: 100%; 
-    padding: 14px; 
-    background: #fff; 
-    color: #000; 
-    border: none; 
-    font-weight: bold; 
-    cursor: pointer; 
-    border-radius: 8px; 
-    margin-top: 20px;
-    transition: all 0.2s ease;
+    width: 100%; padding: 12px; background: #000; color: #fff; border: none; 
+    font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px;
 }
 
-button:active { transform: scale(0.98); }
-button:disabled { opacity: 0.5; cursor: default; }
-
-/* 5. Map Elements */
-/* White Marker to pop against dark map */
-.leaflet-marker-icon {
-    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.4)) brightness(1.2);
-}
-
-/* Clean up Leaflet visuals */
-.leaflet-bar, .leaflet-control-attribution { display: none !important; }
+/* Hide Leaflet UI */
+.leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
