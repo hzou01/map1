@@ -1,20 +1,28 @@
-body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; }
-
-/* The Map itself gets the blur and the white tint */
-#map { 
-    position: absolute; 
-    width: 100vw; height: 100vh; 
-    z-index: 1; 
-    background: #fff;
+body, html { 
+    margin: 0; padding: 0; 
+    width: 100%; height: 100%; 
+    overflow: hidden; 
+    background: #000;
 }
 
-/* We apply the blur to the tile layer container specifically */
-.leaflet-tile-container {
-    filter: blur(15px) brightness(1.05);
-    -webkit-filter: blur(15px) brightness(1.05);
+.map-container {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
 }
 
-/* UI remains on top */
+/* Bottom layer: Crystal Clear */
+#map-sharp { z-index: 1; }
+
+/* Top layer: Blurry and desaturated */
+#map-blur { 
+    z-index: 2; 
+    filter: blur(15px) brightness(1.1) saturate(0.4);
+    -webkit-filter: blur(15px) brightness(1.1) saturate(0.4);
+    pointer-events: none; /* Clicks pass through to the sharp map below */
+}
+
 #ui {
     position: absolute; 
     top: 25px; left: 25px; 
@@ -22,16 +30,19 @@ body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
     width: 270px; padding: 25px;
     background: rgba(255, 255, 255, 0.85); 
     backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(0, 0, 0, 0.05);
     border-radius: 18px;
     box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    color: #1a1a1a;
     font-family: -apple-system, sans-serif;
 }
 
 h1 { font-size: 10px; letter-spacing: 2.5px; text-transform: uppercase; margin: 0 0 20px 0; opacity: 0.5; }
+.slider-header { display: flex; justify-content: space-between; align-items: baseline; }
 #radius-display { font-family: monospace; font-size: 13px; font-weight: bold; }
-input[type=range] { width: 100%; accent-color: #000; cursor: ew-resize; }
-button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; border-radius: 10px; margin-top: 20px; }
+.label { font-size: 9px; font-weight: bold; opacity: 0.4; text-transform: uppercase; }
 
+input[type=range] { width: 100%; margin-top: 15px; accent-color: #000; cursor: ew-resize; }
+button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; border-radius: 10px; margin-top: 20px; cursor: pointer; }
+
+/* Hide Leaflet controls for both maps */
 .leaflet-control-container { display: none !important; }
