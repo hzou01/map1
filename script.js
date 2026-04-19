@@ -1,12 +1,12 @@
-let map, marker, droneSynth, noiseSynth, polySynth, melodyLoop;
+let map, marker, droneSynth, noiseSynth, chimePoly, melodyLoop;
 let isAudioActive = false;
 
-// We simulate your "TopToChop" ratios here
+// The "TopToChop" data remains the driver
 let ratios = { green: 0.3, gray: 0.5, blue: 0.2 }; 
-const SCALE = ["C3", "Eb3", "F3", "G3", "Bb3", "C4", "Eb4"];
+// Moving the scale up to Octave 4 and 5 for that "chiming" feel
+const SCALE = ["C4", "Eb4", "F4", "G4", "Bb4", "C5", "Eb5", "G5"];
 
 function init() {
-    // 1. Initialize Map
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -17,15 +17,13 @@ function init() {
 
     marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
-    // 2. Visual Probe Logic
     function syncProbe() {
         const radiusMeters = parseInt(slider.value);
         const markerLatLng = marker.getLatLng();
         display.innerText = radiusMeters >= 1000 ? (radiusMeters/1000).toFixed(1) + "km" : radiusMeters + "m";
 
         const centerPoint = map.latLngToContainerPoint(markerLatLng);
-        const lat = markerLatLng.lat;
-        const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+        const metersPerPixel = 156543.03392 * Math.cos(markerLatLng.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
         const pixelRadius = radiusMeters / metersPerPixel;
 
         const holeX = centerPoint.x + 100; 
@@ -35,65 +33,62 @@ function init() {
         frost.style.webkitClipPath = `path('${fullPath}')`;
         frost.style.clipPath = `path('${fullPath}')`;
         
-        // Simulating the "ChromaKey" analysis based on the probe's location
-        // This is where your VCV Rack style interaction happens
         updateAudioParams();
     }
 
     function updateAudioParams() {
         if (!isAudioActive) return;
-        // GREEN -> Filter Brightness
-        const freq = 200 + (ratios.green * 3000);
-        droneSynth.filter.frequency.rampTo(freq, 0.5);
-        // GRAY -> Industrial Noise
-        noiseSynth.volume.rampTo(-40 + (ratios.gray * 30), 0.5);
-        // BLUE -> Tempo
-        Tone.Transport.bpm.rampTo(60 + (ratios.blue * 100), 1);
+        
+        // GREEN -> Softens the chime (Lowpass Filter)
+        const cutoff = 1000 + (ratios.green * 4000);
+        chimePoly.set({ envelope: { release: 0.5 + ratios.green } });
+
+        // GRAY -> Increases "Chime Density" (Melody complexity)
+        // No more heavy noise—just more frequent high notes.
+
+        // BLUE -> Slows the pace, but keeps it light
+        Tone.Transport.bpm.rampTo(80 + (ratios.blue * 40), 1);
     }
 
-    // 3. THE BUTTON (The fix)
     startBtn.onclick = async () => {
         try {
             await Tone.start();
-            console.log("Audio Context Started");
 
-            // Define the instruments inside the click
-            polySynth = new Tone.PolySynth(Tone.Synth).toDestination();
-            
-            droneSynth = {
-                filter: new Tone.Filter(500, "lowpass").toDestination(),
-                osc: new Tone.Oscillator("C2", "sawtooth")
-            };
-            droneSynth.osc.connect(droneSynth.filter).start();
+            // 1. THE CHIME (FMSynth is perfect for bell/glass sounds)
+            chimePoly = new Tone.PolySynth(Tone.FMSynth, {
+                harmonicity: 3,
+                modulationIndex: 10,
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.01, decay: 0.3, sustain: 0.1, release: 1.2 },
+                modulation: { type: "square" }
+            }).toDestination();
 
-            noiseSynth = new Tone.Noise("pink").toDestination();
-            noiseSynth.volume.value = -40;
-            noiseSynth.start();
+            // 2. THE SHIMMER (Replacing the heavy base)
+            droneSynth = new Tone.Oscillator("C4", "sine").toDestination();
+            droneSynth.volume.value = -25; // Very subtle
+            droneSynth.start();
 
+            // 3. GENERATIVE SEQUENCE
             melodyLoop = new Tone.Loop(time => {
-                // Note probability based on "Gray" density (Buildings)
-                if (Math.random() < ratios.gray) {
+                // Urban density (Gray) makes the melody more frantic/chiming
+                if (Math.random() < (0.2 + ratios.gray * 0.6)) {
                     const note = SCALE[Math.floor(Math.random() * SCALE.length)];
-                    polySynth.triggerAttackRelease(note, "16n", time);
+                    chimePoly.triggerAttackRelease(note, "32n", time);
                 }
-            }, "8n").start(0);
+            }, "16n").start(0);
 
             Tone.Transport.start();
             startBtn.innerText = "PROBE ACTIVE";
-            startBtn.style.background = "#222";
             isAudioActive = true;
-        } catch (err) {
-            console.error("Audio failed to initialize:", err);
-        }
+        } catch (err) { console.error(err); }
     };
 
-    // 4. Listeners
     slider.oninput = syncProbe;
     map.on('zoom move', syncProbe);
     marker.on('drag', syncProbe);
     
-    // Simulate data change on drag end
     marker.on('dragend', () => {
+        // Randomize ratios to simulate movement through different zones
         ratios.green = Math.random(); 
         ratios.gray = Math.random();
         ratios.blue = 1 - (ratios.green + ratios.gray);
