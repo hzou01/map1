@@ -1,15 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>URBAN PROBE</title>
+    <meta charset="UTF-8">
+    <title>URBAN PROBE | High Stability</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 </head>
 <body>
-    <div id="map-bw" class="map-layer"></div>
-    <div id="map-color" class="map-layer"></div>
+
+    <div id="map"></div>
 
     <div id="ui">
         <h1>Urban Probe System</h1>
@@ -17,11 +18,12 @@
         <div class="stat"><span class="label">LNG</span><span id="lng">-71.4128</span></div>
         <div class="stat"><span class="label">ALT</span><span id="ele">-- m</span></div>
         <div class="control-group">
-            <span class="label">Lens Radius</span>
+            <span class="label">Probe Radius</span>
             <input type="range" id="radius-slider" min="50" max="400" value="150">
         </div>
         <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
+
     <script src="script.js"></script>
 </body>
 </html>

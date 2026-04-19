@@ -1,47 +1,40 @@
-/* Reset */
-body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a1a; }
+body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #fff; }
 
-.map-layer {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100vw; height: 100vh;
-}
-
-/* 1. BACKGROUND MAP (Grayscale) */
-#map-bw {
-    z-index: 1;
-    /* Removed 'invert' to prevent total blackness; sticking to high-contrast B&W */
-    filter: grayscale(100%) brightness(0.8) contrast(1.2);
-}
-
-/* 2. COLOR LENS MAP */
-#map-color {
-    z-index: 2;
-    pointer-events: none;
-    /* This will be clipped by JS */
-}
-
-/* 3. Glass UI */
-#ui {
+#map { 
     position: absolute; 
-    top: 25px; left: 25px; 
-    z-index: 1000;
-    width: 270px; padding: 25px;
-    background: rgba(255, 255, 255, 0.8); 
-    backdrop-filter: blur(15px);
-    -webkit-backdrop-filter: blur(15px);
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    color: #1a1a1a;
-    font-family: -apple-system, sans-serif;
+    width: 100vw; 
+    height: 100vh; 
+    background: #eee; 
 }
 
-h1 { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin: 0 0 15px 0; opacity: 0.6; }
-.stat { display: flex; justify-content: space-between; font-family: monospace; margin: 8px 0; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.05); }
-.label { font-size: 9px; font-weight: bold; opacity: 0.5; }
+/* THE MAGIC: This creates the "B&W outside, Color inside" effect on a single map */
+.leaflet-tile-container {
+    /* Adjust these values to change the 'outside' look */
+    filter: grayscale(100%) brightness(0.9);
+    
+    /* This mask will be updated by JavaScript to follow the marker */
+    mask-image: radial-gradient(circle 150px at center, transparent 100%, black 100%);
+    -webkit-mask-image: radial-gradient(circle 150px at 50% 50%, transparent 100%, black 100%);
+    
+    /* We invert the logic: the MASK shows the filter. 
+       So we want the 'hole' to have NO filter. */
+    mask-composite: exclude;
+    -webkit-mask-composite: destination-out;
+}
 
-input[type=range] { width: 100%; margin-top: 10px; accent-color: #000; }
-button { width: 100%; padding: 12px; background: #000; color: #fff; border: none; font-weight: bold; border-radius: 8px; margin-top: 15px; cursor: pointer; }
+#ui {
+    position: absolute; top: 25px; left: 25px; z-index: 1000;
+    width: 260px; padding: 20px;
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    font-family: sans-serif;
+}
 
-/* Hide Leaflet Branding */
-.leaflet-control-container { display: none !important; }
+.stat { display: flex; justify-content: space-between; margin: 10px 0; font-family: monospace; border-bottom: 1px solid #ddd; }
+.label { font-size: 10px; font-weight: bold; opacity: 0.5; }
+button { width: 100%; padding: 10px; background: #000; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+input[type=range] { width: 100%; accent-color: #000; }
+
+.leaflet-control-container { display: none; }
