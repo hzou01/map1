@@ -1,34 +1,128 @@
-body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: 'Google Sans', sans-serif; background: #000; }
-
-#map { width: 100%; height: 100%; position: absolute; }
-
-#ui-container {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    z-index: 10;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(15px); /* This is the "Liquid Glass" effect */
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 20px;
-    border-radius: 12px;
-    color: white;
-    width: 250px;
+/* 1. Global Reset & High-Quality Typography */
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #000; /* Fallback for map loading */
+    font-family: 'Google Sans', 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
 }
 
-h1 { font-size: 14px; letter-spacing: 2px; margin: 0 0 15px 0; opacity: 0.7; }
-.stats p { font-size: 12px; margin: 5px 0; }
+/* 2. The Map Container - CRITICAL FOR VISIBILITY */
+#map {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1; /* Keep map at the bottom */
+}
 
-/* Clean Minimalist Slider */
-input[type=range] { width: 100%; margin-top: 15px; cursor: pointer; }
+/* 3. The "Liquid Glass" UI Layer */
+#ui-layer {
+    position: absolute;
+    top: 30px;
+    left: 30px;
+    width: 280px;
+    z-index: 100; /* Above the map */
+    padding: 24px;
+    
+    /* The Glass Effect */
+    background: rgba(20, 20, 20, 0.6);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    
+    /* Industrial Borders */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    
+    color: #fff;
+    pointer-events: auto; /* Ensure you can click the buttons/sliders */
+}
+
+/* 4. Minimalist Headers */
+h1 {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    margin: 0 0 24px 0;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 10px;
+}
+
+/* 5. Data Readout Styling */
+.data-point {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.4);
+}
+
+#coords, #ele {
+    font-family: 'Courier New', Courier, monospace; /* Monospace for numbers looks professional */
+    font-size: 14px;
+    color: #fff;
+}
+
+/* 6. Interaction Controls */
+input[type=range] {
+    width: 100%;
+    margin-top: 15px;
+    background: rgba(255, 255, 255, 0.1);
+    height: 4px;
+    border-radius: 2px;
+    appearance: none;
+    outline: none;
+}
+
+input[type=range]::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    cursor: pointer;
+}
 
 button {
-    background: white;
-    border: none;
-    padding: 10px;
     width: 100%;
-    margin-top: 20px;
-    border-radius: 6px;
-    font-weight: bold;
+    padding: 14px;
+    margin-top: 24px;
+    border-radius: 8px;
+    border: none;
+    background: #fff;
+    color: #000;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
     cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+button:hover {
+    background: rgba(255, 255, 255, 0.9);
+    transform: translateY(-1px);
+}
+
+button:active {
+    transform: translateY(0);
+}
+
+/* 7. Hide Leaflet Default UI Bloat */
+.leaflet-control-zoom, 
+.leaflet-control-attribution {
+    display: none !important;
 }
