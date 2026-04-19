@@ -1,11 +1,11 @@
-let map, marker, chimePoly, natureBase, waterPad, bitCrusher;
+let map, marker, chimePoly, natureBase, waterPad;
 let isAudioActive = false;
 let ratios = { green: 0.3, gray: 0.5, blue: 0.2 }; 
 
-// Pentatonic scales for harmony
+// Updated Scales for depth
 const HIGH_CHIMES = ["C5", "D5", "G5", "A5", "C6"]; 
-const MID_PAD = ["G3", "A3", "C4", "D4"];
-const DEEP_BASE = ["C2", "G2"];
+const MID_PAD = ["G3", "A3", "C4", "D4"]; // The "Medium" Tones
+const DEEP_BASE = ["C2", "G2", "C1"];    // The "Low" Tones
 
 function init() {
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
@@ -33,61 +33,62 @@ function init() {
     function updateAudioParams() {
         if (!isAudioActive) return;
 
-        // 1. URBAN (Gray): Fast BPM + Subtle Grit
-        const urbanTempo = 90 + (ratios.gray * 110); // Up to 200 BPM
+        // URBAN: Speed + Grit
+        const urbanTempo = 80 + (ratios.gray * 120); 
         Tone.Transport.bpm.rampTo(urbanTempo, 1);
-        chimePoly.volume.rampTo(-10 + (ratios.gray * 10), 0.5);
+        chimePoly.volume.rampTo(-15 + (ratios.gray * 10), 0.5);
 
-        // 2. NATURE (Green): Bring out the Deep Base
-        // The base gets louder and the "attack" gets softer/longer
-        natureBase.volume.rampTo(-40 + (ratios.green * 35), 1.5);
+        // NATURE (BASS): Forcing it to be "Obvious"
+        // Base volume is higher (-25) and swells to -5
+        natureBase.volume.rampTo(-25 + (ratios.green * 20), 1);
         
-        // 3. WATER (Blue): The Mid-Layer "Cloud"
-        // This is the "Medium Tonal" sound you wanted
-        waterPad.volume.rampTo(-45 + (ratios.blue * 35), 1.5);
+        // WATER (MID): The "Cloudy" layer swell
+        waterPad.volume.rampTo(-30 + (ratios.blue * 25), 1);
     }
 
     startBtn.onclick = async () => {
         try {
             await Tone.start();
 
-            // HIGH: Natural Chimes (FM Synth)
+            // HIGH LAYER: Soft Chimes
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                modulationIndex: 5,
-                envelope: { attack: 0.05, decay: 0.2, sustain: 0.1, release: 1.5 }
+                harmonicity: 2,
+                envelope: { attack: 0.1, release: 1.5 }
             }).toDestination();
 
-            // MID: The Water Pad (Cloudy/Medium)
+            // MID LAYER: Warm Triangle Pad (The "Medium" Tone)
             waterPad = new Tone.PolySynth(Tone.Synth, {
                 oscillator: { type: "triangle" },
-                envelope: { attack: 3, release: 5 }
+                envelope: { attack: 2, release: 6 }
             }).toDestination();
 
-            // LOW: The Nature Base (Deep/Long)
+            // LOW LAYER: Deep Sine (The "Base")
             natureBase = new Tone.PolySynth(Tone.Synth, {
                 oscillator: { type: "sine" },
-                envelope: { attack: 2, release: 8 }
+                envelope: { attack: 1, release: 8 }
             }).toDestination();
 
-            // GENERATIVE SEQUENCER
+            // GENERATIVE LOOP
             new Tone.Loop(time => {
-                // URBAN: Fast Pings (Based on Gray)
+                // Urban (Always fast 16th notes, probability changes)
                 if (Math.random() < (0.1 + ratios.gray * 0.8)) {
                     const note = HIGH_CHIMES[Math.floor(Math.random() * HIGH_CHIMES.length)];
                     chimePoly.triggerAttackRelease(note, "16n", time);
                 }
 
-                // MID/LOW: Only trigger on downbeats for that "Score" feel
+                // TRIGGER BASS & MID: On every single downbeat for maximum presence
                 if (Tone.Transport.getTicksAtTime(time) % Tone.Ticks("1n").toNumber() === 0) {
-                    // Trigger Nature Base
-                    if (Math.random() < ratios.green + 0.2) {
-                        const note = DEEP_BASE[Math.floor(Math.random() * DEEP_BASE.length)];
-                        natureBase.triggerAttackRelease(note, "1n", time);
+                    
+                    // The Deep Base (Green)
+                    if (Math.random() < (ratios.green + 0.3)) {
+                        const bNote = DEEP_BASE[Math.floor(Math.random() * DEEP_BASE.length)];
+                        natureBase.triggerAttackRelease(bNote, "1n", time);
                     }
-                    // Trigger Water Pad (Medium tone)
-                    if (Math.random() < ratios.blue + 0.2) {
-                        const note = MID_PAD[Math.floor(Math.random() * MID_PAD.length)];
-                        waterPad.triggerAttackRelease(note, "1n", time);
+                    
+                    // The Cloudy Mid-Tone (Blue)
+                    if (Math.random() < (ratios.blue + 0.3)) {
+                        const mNote = MID_PAD[Math.floor(Math.random() * MID_PAD.length)];
+                        waterPad.triggerAttackRelease(mNote, "2n", time);
                     }
                 }
             }, "8n").start(0);
@@ -102,7 +103,6 @@ function init() {
     map.on('zoom move', syncProbe);
     marker.on('drag', syncProbe);
     marker.on('dragend', () => {
-        // Simulating the "TopToChop" analysis
         ratios.green = Math.random(); 
         ratios.gray = Math.random();
         ratios.blue = 1 - (ratios.green + ratios.gray);
