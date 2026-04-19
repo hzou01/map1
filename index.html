@@ -2,33 +2,42 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>URBAN PROBE | Final Open Build</title>
+    <title>URBAN PROBE | Open Source Build</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
 
     <style>
-        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; background: #fff; overflow: hidden; font-family: sans-serif; }
-        #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; overflow: hidden; background: #fff; }
+        #map { position: absolute; width: 100%; height: 100%; z-index: 1; }
+
+        /* THE TRICK: This CSS turns the colorful standard OSM map 
+           into a clean, architectural "Shortbread" style manually. */
+        .leaflet-tile-container {
+            filter: grayscale(100%) brightness(1.05) contrast(0.8) opacity(0.9);
+        }
 
         /* Your Glassmorphism UI */
         #ui {
             position: absolute; top: 25px; left: 25px; z-index: 1000;
             width: 270px; padding: 25px;
-            background: rgba(255, 255, 255, 0.72); 
+            background: rgba(255, 255, 255, 0.75); 
             backdrop-filter: blur(15px) saturate(160%);
             -webkit-backdrop-filter: blur(15px) saturate(160%);
             border: 1px solid rgba(0, 0, 0, 0.08);
             border-top: 1px solid rgba(255, 255, 255, 0.4);
             border-radius: 16px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.06);
+            font-family: -apple-system, sans-serif;
             color: #1a1a1a;
         }
 
-        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.5; text-transform: uppercase; margin: 0 0 20px 0; }
-        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 12px 0; font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 5px;}
-        button { width: 100%; padding: 14px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px;}
+        h1 { font-size: 10px; letter-spacing: 2px; opacity: 0.4; text-transform: uppercase; margin: 0 0 15px 0; }
+        .stat { display: flex; justify-content: space-between; font-family: monospace; margin: 10px 0; font-size: 13px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 4px;}
+        button { width: 100%; padding: 12px; background: #000; color: #fff; border: none; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 15px; }
+        
+        /* Clean Map UI */
         .leaflet-control-zoom, .leaflet-control-attribution { display: none !important; }
     </style>
 </head>
@@ -38,52 +47,56 @@
 
 <div id="ui">
     <h1>Urban Probe Sensor</h1>
-    <div class="stat"><span>POS:</span> <span id="pos">41.824, -71.412</span></div>
-    <div class="stat"><span>ELE:</span> <span id="ele">-- m</span></div>
-    <button id="start-btn">INITIALIZE AUDIO</button>
+    <div class="stat"><span>LAT:</span> <span id="lat">41.824</span></div>
+    <div class="stat"><span>LNG:</span> <span id="lng">-71.412</span></div>
+    <div class="stat"><span>ALT:</span> <span id="ele">-- m</span></div>
+    <button id="start-btn">INITIALIZE SENSORS</button>
 </div>
 
 <script>
-    let map, marker, synth, audioActive = false;
+    let map, marker, synth, audioOn = false;
 
     function init() {
-        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
+        // Initialize Map
+        map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 16);
 
-        // THE "DIRECT" OPEN SOURCE LAYER (No API Key Required)
-        // This is the cleanest monotone map available for Leaflet.
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            subdomains: 'abcd',
-            maxZoom: 20
+        // DIRECT OPEN STREET MAP (No API Key Required)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19
         }).addTo(map);
 
+        // Hardware Probe
         marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
         marker.on('drag', (e) => {
             const p = e.target.getLatLng();
-            document.getElementById('pos').innerText = p.lat.toFixed(3) + ", " + p.lng.toFixed(3);
+            document.getElementById('lat').innerText = p.lat.toFixed(3);
+            document.getElementById('lng').innerText = p.lng.toFixed(3);
         });
 
         marker.on('dragend', (e) => {
             const p = e.target.getLatLng();
-            fetchElevation(p.lat, p.lng);
+            fetchData(p.lat, p.lng);
         });
 
+        // Audio Engine
         document.getElementById('start-btn').onclick = async () => {
             await Tone.start();
-            synth = new Tone.MonoSynth().toDestination();
-            document.getElementById('start-btn').innerText = "ONLINE";
-            audioActive = true;
+            synth = new Tone.MonoSynth({ oscillator: { type: "sine" } }).toDestination();
+            document.getElementById('start-btn').innerText = "SYSTEM ONLINE";
+            document.getElementById('start-btn').style.opacity = 0.5;
+            audioOn = true;
         };
     }
 
-    async function fetchElevation(lat, lng) {
+    async function fetchData(lat, lng) {
         try {
             const res = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${lat},${lng}`);
             const data = await res.json();
             const val = data.results[0].elevation;
             document.getElementById('ele').innerText = Math.round(val) + "m";
-            if (audioActive && synth) synth.triggerAttackRelease(200 + val, "4n");
-        } catch(e) { console.log("API limit reached"); }
+            if (audioOn && synth) synth.triggerAttackRelease(200 + val, "4n");
+        } catch(e) { console.log("API check..."); }
     }
 
     window.onload = init;
