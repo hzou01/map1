@@ -1,21 +1,17 @@
 const SCALES = {
-    high: ["C4", "E4", "G4", "B4", "C5"],  // Urban: Bright/Maj7
-    mid: ["G3", "A3", "C4", "D4", "E4"],   // Forest: Warm/Medium Shimmer
-    low: ["C2", "G2", "C3", "E3"]          // Ocean: Deep/Liquid
-};
-
-const ZONES = {
-    PVD: { center: [41.8245, -71.4128], radius: 2500 },
-    BOS: { center: [42.3601, -71.0589], radius: 4000 },
-    NYC: { center: [40.7128, -74.0060], radius: 6000 }
+    URBAN: ["C4", "E4", "G4", "B4", "C5"],  // Strong resonance / Maj7
+    FOREST: ["A3", "C4", "D4", "E4", "G4"], // Soft tones / Pentatonic
+    OCEAN: ["C2", "G2", "C3", "E3"]         // Deep/Slow pulse
 };
 
 let map, marker, chimePoly, noiseSynth, waterFlow, masterReverb, masterGain;
 let isAudioActive = false;
-let currentRatios = { urban: 0.5, blue: 0.1, green: 0.1 };
+
+// We now track all three as a continuous blend
+let blend = { urban: 0, forest: 0, ocean: 0 };
 
 function init() {
-    const startPos = [41.8245, -71.4128];
+    const startPos = [41.8245, -71.4128]; // Kennedy Plaza
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView(startPos, 15);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
     marker = L.marker(startPos, { draggable: true }).addTo(map);
@@ -25,66 +21,53 @@ function init() {
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
 
-    function syncProbe() {
+    function calculateLayers() {
         const radiusMeters = parseInt(slider.value);
         if (radiusDisplay) radiusDisplay.innerText = radiusMeters + "m";
-
-        const centerLatLng = marker.getLatLng();
-        const centerPoint = map.latLngToContainerPoint(centerLatLng);
-        const zoom = map.getZoom();
-        const metersPerPixel = 156543.03392 * Math.cos(centerLatLng.lat * Math.PI / 180) / Math.pow(2, zoom);
-        const pixelRadius = radiusMeters / metersPerPixel;
-
-        const w = window.innerWidth;
-        const h = window.innerHeight;
-        const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
-        frost.style.clipPath = `path('${fullPath}')`;
-
-        // RADIUS RESPONSIVENESS
-        // Size factor: 0.1 (small) to 1.0 (large)
-        const sizeFactor = radiusMeters / 2000; 
+        const pos = marker.getLatLng();
         
-        // 1. Geography Check
-        let inUrban = false;
-        for (let key in ZONES) {
-            const zone = ZONES[key];
-            if (centerLatLng.distanceTo(zone.center) < zone.radius) { inUrban = true; break; }
-        }
+        // 1. DISTANCE TO URBAN CORES (Stronger Resonance)
+        const pvdDist = pos.distanceTo([41.8245, -71.4128]);
+        const bosDist = pos.distanceTo([42.3601, -71.0589]);
+        const nycDist = pos.distanceTo([40.7128, -74.0060]);
+        const minDist = Math.min(pvdDist, bosDist, nycDist);
+        
+        // Urban is 1.0 at center, fades to 0.0 at 5km
+        blend.urban = Math.max(0, 1 - (minDist / 5000));
 
-        const isWater = (centerLatLng.lng > -71.405 && centerLatLng.lat < 41.818) || 
-                        (centerLatLng.lng > -71.050 && centerLatLng.lat < 42.360);
+        // 2. OCEAN/RIVER (Slower Rhythm)
+        // Strictly coastal check to prevent "Suburban Ocean"
+        const isCoastal = (pos.lng > -71.402 && pos.lat < 41.815) || // PVD River
+                          (pos.lng > -71.045 && pos.lat < 42.365) || // BOS Harbor
+                          (pos.lng > -74.025 && pos.lng < -73.97);   // NYC Rivers
+        blend.ocean = isCoastal ? 0.9 : 0.0;
 
-        if (isWater) currentRatios = { urban: 0.1, blue: 0.9, green: 0.0 };
-        else if (inUrban) currentRatios = { urban: 0.9, blue: 0.05, green: 0.05 };
-        else currentRatios = { urban: 0.1, blue: 0.1, green: 0.8 };
+        // 3. FOREST/MOUNTAIN (Softer Tones)
+        // Forest is the "base" layer that fills in where urban/ocean are weak
+        blend.forest = Math.max(0.2, 1 - blend.urban - blend.ocean);
 
-        if (isAudioActive) updateAudioEngine(sizeFactor);
+        if (isAudioActive) updateAudioEngine(radiusMeters / 2000);
     }
 
     function updateAudioEngine(size) {
-        const { urban, blue, green } = currentRatios;
+        // RHYTHM: Roads = Fast, Ocean = Slow
+        const baseBPM = 60 + (blend.urban * 60) - (blend.ocean * 25);
+        Tone.Transport.bpm.rampTo(Math.max(40, baseBPM), 0.5);
 
-        // RHYTHM: Forest stays medium/active. Ocean is pulsed.
-        const baseBPM = 60 + (urban * 70) + (green * 15);
-        const sizeSlowdown = size * 15; // Larger probe = more "drifting" feel
-        Tone.Transport.bpm.rampTo(Math.max(50, baseBPM - sizeSlowdown), 0.5);
+        // INDUSTRIAL RESONANCE (High-pass Noise)
+        noiseSynth.volume.rampTo(-45 + (blend.urban * 15), 0.5);
+        
+        // WAVE PULSE (Pink Noise)
+        waterFlow.volume.rampTo(blend.ocean > 0.1 ? -28 : -80, 1.2);
 
-        // MELODY SHIFT
-        chimePoly.set({ 
-            harmonicity: green > 0.5 ? 3.8 : 1.5, // Shimmers in forest
-            modulationIndex: 10 * urban + (5 * size), // Complexity increases with size
+        // REVERB & SPACE
+        masterReverb.wet.rampTo(0.1 + (blend.forest * 0.3) + (size * 0.3), 1.0);
+
+        // TONE CHARACTER
+        chimePoly.set({
+            harmonicity: 1.5 + (blend.forest * 2), // Shimmering forest
+            modulationIndex: 5 + (blend.urban * 10) // Aggressive urban
         });
-
-        // WAVE VOLUME: Softer, more "lapping"
-        const waveLevel = blue > 0.5 ? (-28 + (size * 5)) : -80;
-        waterFlow.volume.rampTo(waveLevel, 1.0);
-
-        // REVERB: More "space" as the probe grows
-        masterReverb.wet.rampTo(0.1 + (size * 0.4), 1.0);
-
-        // EFFECTS: Envelope release
-        const rel = 0.5 + (blue * 8) + (green * 3) + (size * 4);
-        chimePoly.set({ envelope: { release: rel } });
     }
 
     startBtn.onclick = async () => {
@@ -96,43 +79,59 @@ function init() {
             masterReverb = new Tone.Reverb({ decay: 12, wet: 0.2 }).connect(masterGain);
 
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                oscillator: { type: "sine" }, // Smoother, less aggressive
-                envelope: { attack: 0.08, decay: 0.4, sustain: 0.5, release: 2 }
+                oscillator: { type: "fatsine" },
+                envelope: { attack: 0.1, decay: 0.5, sustain: 0.4, release: 4 }
             }).connect(masterReverb);
 
-            noiseSynth = new Tone.Noise("pink").connect(new Tone.Filter(800, "highpass").connect(masterGain));
-            noiseSynth.volume.value = -80;
+            // Layer 1: Road Resonance
+            noiseSynth = new Tone.Noise("pink").connect(new Tone.Filter(1200, "highpass").connect(masterGain));
             noiseSynth.start();
 
-            // SOFT WATER: Pink noise with a very slow LFO for wave movement
-            const lfo = new Tone.LFO("0.1hz", 400, 1200).start();
+            // Layer 2: Ocean Lapping
+            const lfo = new Tone.LFO("0.08hz", 500, 1500).start();
             const waterFilter = new Tone.Filter(800, "lowpass").connect(masterReverb);
             lfo.connect(waterFilter.frequency);
-            
             waterFlow = new Tone.Noise("pink").connect(waterFilter);
             waterFlow.start();
-            waterFlow.volume.value = -80;
 
+            // Layer 3: The Melodic Weaver
             new Tone.Loop(time => {
-                const prob = 0.85; 
-                if (Math.random() < prob) {
-                    let scale = (currentRatios.blue > 0.6) ? SCALES.low : 
-                                (currentRatios.green > 0.5) ? SCALES.mid : SCALES.high;
+                // We decide which "voice" speaks based on the blend
+                let scale;
+                const r = Math.random();
+                if (r < blend.urban) scale = SCALES.URBAN;
+                else if (r < blend.urban + blend.forest) scale = SCALES.FOREST;
+                else scale = SCALES.OCEAN;
 
-                    const note = scale[Math.floor(Math.random() * scale.length)];
-                    chimePoly.triggerAttackRelease(note, "8n", time, 0.5);
-                }
+                const note = scale[Math.floor(Math.random() * scale.length)];
+                
+                // Velocity reflects the intensity of the layer
+                const vel = 0.3 + (blend.urban * 0.4) + (blend.forest * 0.2);
+                chimePoly.triggerAttackRelease(note, "4n", time, vel);
             }, "8n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
-            syncProbe();
+            calculateLayers();
         } catch (e) { console.error(e); }
     };
 
-    slider.oninput = syncProbe;
-    map.on('move zoom drag', syncProbe);
-    marker.on('drag', syncProbe);
+    // UI Sync
+    const update = () => {
+        const radiusMeters = parseInt(slider.value);
+        const centerLatLng = marker.getLatLng();
+        const centerPoint = map.latLngToContainerPoint(centerLatLng);
+        const zoom = map.getZoom();
+        const metersPerPixel = 156543.03392 * Math.cos(centerLatLng.lat * Math.PI / 180) / Math.pow(2, zoom);
+        const pixelRadius = radiusMeters / metersPerPixel;
+
+        frost.style.clipPath = `path('M 0 0 H ${window.innerWidth} V ${window.innerHeight} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0')`;
+        calculateLayers();
+    };
+
+    slider.oninput = update;
+    marker.on('drag', update);
+    map.on('zoom move', update);
 }
 
 window.onload = init;
