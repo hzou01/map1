@@ -70,49 +70,54 @@ function init() {
 
     // 3. Aggregate Sensing (Works at 10,000m)
     function detectFeatures(latlng) {
-    // 1. GLOBAL WATER SENSOR (The Bay/Oceans)
-    // We check if the marker is outside the city bounds or near the known harbor
-    const distToCityCenter = latlng.distanceTo([41.824, -71.412]);
-    const isLikelyNature = distToCityCenter > 2000; 
+    const distToCenter = latlng.distanceTo([41.824, -71.412]);
 
-    // 2. ADAPTIVE RATIOS
-    // If we are far from the city center, we boost Blue/Green automatically
-    if (isLikelyNature) {
-        currentRatios.blue = Math.min(1.0, distToCityCenter / 10000);
-        currentRatios.green = Math.max(0, 0.5 - currentRatios.blue);
-        currentRatios.red = 0.05; // Quiet industrial
-    } else {
-        // We are in the City Core (Red/Grey zone)
-        currentRatios.red = 0.8; 
+    // If within 2km of downtown, we are "Urban"
+    if (distToCenter < 2000) {
+        currentRatios.red = 0.8;
+        currentRatios.grey = 0.4;
         currentRatios.blue = 0.1;
-        currentRatios.green = 0.1;
+    } else {
+        // We are in the Bay or the Woods
+        currentRatios.red = 0.1;
+        currentRatios.grey = 0.1;
+        currentRatios.blue = 0.9;
     }
-
+    
     updateAudioEngine();
 }
 
     function updateAudioEngine() {
     if (!isAudioActive) return;
 
-    // --- 1. DYNAMIC SPEED (BPM) ---
-    // Urban/Roads = Fast (140 BPM) | Water = Slow (30 BPM)
-    const urbanEnergy = currentRatios.red + currentRatios.grey;
-    const natureDrag = currentRatios.blue + currentRatios.green;
-    
-    const targetBPM = 40 + (urbanEnergy * 100) - (natureDrag * 20);
-    Tone.Transport.bpm.rampTo(Math.max(25, targetBPM), 0.5);
+    // 1. CALCULATE DOMINANCE
+    const urbanDensity = (currentRatios.red + currentRatios.grey + currentRatios.yellow);
+    const waterPresence = currentRatios.blue;
 
-    // --- 2. NODE FREQUENCY ---
-    // We update a global variable that the Loop uses to decide how often to 'ping'
-    // Higher urban density = more nodes popping out
-    this.nodeProbability = 0.1 + (urbanEnergy * 0.8);
+    // 2. SPEED REGAIN (BPM)
+    // snapped to a faster base (130) for the city, dropping to 20 for the ocean
+    const targetBPM = 25 + (urbanDensity * 105); 
+    Tone.Transport.bpm.rampTo(Math.max(20, targetBPM), 0.8);
 
-    // --- 3. INDUSTRIAL NOISE ---
-    noiseSynth.volume.rampTo(-50 + (currentRatios.red * 35), 0.2);
+    // 3. EXTENDED NODES (The "Symphonic" Stretch)
+    // In the city, release is 0.5s. In the ocean, notes ring for 15s.
+    const nodeRelease = 0.5 + (waterPresence * 14.5);
+    chimePoly.set({ 
+        envelope: { release: nodeRelease },
+        resonance: 0.5 + (waterPresence * 0.4) 
+    });
+
+    // 4. INDUSTRIAL PERSISTENCE FIX
+    // We force the Industrial noise to die when Water is high
+    const noiseGain = -60 + (urbanDensity * 40) - (waterPresence * 20);
+    noiseSynth.volume.rampTo(Math.min(-20, noiseGain), 0.5);
+
+    // 5. WATER BASE
+    // Only bring in the "Flowing" sound when actually near blue
+    waterFlow.volume.rampTo(-60 + (waterPresence * 35), 1.5);
     
-    // --- 4. WATER PROLONG ---
-    const releaseTime = 1 + (currentRatios.blue * 15);
-    chimePoly.set({ envelope: { release: releaseTime * 0.5 } });
+    // Cloudiness (Reverb) increases in water, clears up in the city
+    masterReverb.wet.rampTo(0.1 + (waterPresence * 0.7), 1);
 }
 
     // 4. Tone.js Initialization
