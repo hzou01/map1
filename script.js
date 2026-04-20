@@ -75,7 +75,9 @@ function init() {
     // If within 2km of downtown, we are "Urban"
     if (distToCenter < 2000) {
         currentRatios.red = 0.8;
-        currentRatios.grey = 0.8;
+        currentRatios.orange = 0.8;
+        currentRatios.yellow = 0.8;
+        currentRatios.grey = 0.9;
         currentRatios.blue = 0.1;
     } else {
         // We are in the Bay or the Woods
