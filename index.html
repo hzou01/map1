@@ -16,13 +16,15 @@
 
     <div id="ui">
         <h1>Urban Probe System</h1>
+        
         <div class="control-group">
             <div class="slider-header">
                 <span class="label">Probe Radius</span>
-                <span id="radius-display">400m</span> 
+                <span id="radius-value">400m</span> 
             </div>
-            <input type="range" id="radius-slider" min="400" max="500000" value="400">
+            <input type="range" id="radius-slider" min="100" max="30000" value="400" step="10">
         </div>
+
         <button id="start-btn">INITIALIZE SENSORS</button>
     </div>
 
