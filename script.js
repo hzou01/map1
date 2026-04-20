@@ -69,40 +69,51 @@ function init() {
 }
 
     // 3. Aggregate Sensing (Works at 10,000m)
-    function detectFeatures(latlng, radius) {
-        // Sensing distance scales with probe size
-        const senseScale = Math.max(radius, 2000);
+    function detectFeatures(latlng) {
+    // 1. GLOBAL WATER SENSOR (The Bay/Oceans)
+    // We check if the marker is outside the city bounds or near the known harbor
+    const distToCityCenter = latlng.distanceTo([41.824, -71.412]);
+    const isLikelyNature = distToCityCenter > 2000; 
 
-        const toWater = latlng.distanceTo([41.815, -71.395]); 
-        const toPark = latlng.distanceTo([41.831, -71.415]); 
-        const toRoad = latlng.distanceTo([41.818, -71.418]);
-
-        currentRatios.blue = Math.max(0, 1 - (toWater / (senseScale * 1.5)));
-        currentRatios.green = Math.max(0, 1 - (toPark / senseScale));
-        currentRatios.red = Math.max(0, 1 - (toRoad / (senseScale * 0.4)));
-
-        // Aggressive Temporal Drag Variables
-        updateAudioEngine();
+    // 2. ADAPTIVE RATIOS
+    // If we are far from the city center, we boost Blue/Green automatically
+    if (isLikelyNature) {
+        currentRatios.blue = Math.min(1.0, distToCityCenter / 10000);
+        currentRatios.green = Math.max(0, 0.5 - currentRatios.blue);
+        currentRatios.red = 0.05; // Quiet industrial
+    } else {
+        // We are in the City Core (Red/Grey zone)
+        currentRatios.red = 0.8; 
+        currentRatios.blue = 0.1;
+        currentRatios.green = 0.1;
     }
+
+    updateAudioEngine();
+}
 
     function updateAudioEngine() {
-        if (!isAudioActive) return;
+    if (!isAudioActive) return;
 
-        // THE SLOWDOWN: Exponential Drag
-        // If blue is high, drag pulls BPM from 120 down to 15
-        const drag = Math.pow(currentRatios.blue, 1.5) + (currentRatios.green * 0.5);
-        const targetBPM = 120 - (drag * 105);
-        Tone.Transport.bpm.rampTo(Math.max(15, targetBPM), 1);
+    // --- 1. DYNAMIC SPEED (BPM) ---
+    // Urban/Roads = Fast (140 BPM) | Water = Slow (30 BPM)
+    const urbanEnergy = currentRatios.red + currentRatios.grey;
+    const natureDrag = currentRatios.blue + currentRatios.green;
+    
+    const targetBPM = 40 + (urbanEnergy * 100) - (natureDrag * 20);
+    Tone.Transport.bpm.rampTo(Math.max(25, targetBPM), 0.5);
 
-        // THE PROLONG: Increase release based on nature
-        const stretch = 1 + (currentRatios.blue * 20);
-        chimePoly.set({ envelope: { release: stretch * 0.5 } });
-        natureBase.set({ envelope: { release: stretch * 2 } });
+    // --- 2. NODE FREQUENCY ---
+    // We update a global variable that the Loop uses to decide how often to 'ping'
+    // Higher urban density = more nodes popping out
+    this.nodeProbability = 0.1 + (urbanEnergy * 0.8);
 
-        // VOLUMES
-        noiseSynth.volume.rampTo(-60 + (currentRatios.red * 40), 0.5);
-        waterFlow.volume.rampTo(-55 + (currentRatios.blue * 35), 1);
-    }
+    // --- 3. INDUSTRIAL NOISE ---
+    noiseSynth.volume.rampTo(-50 + (currentRatios.red * 35), 0.2);
+    
+    // --- 4. WATER PROLONG ---
+    const releaseTime = 1 + (currentRatios.blue * 15);
+    chimePoly.set({ envelope: { release: releaseTime * 0.5 } });
+}
 
     // 4. Tone.js Initialization
     startBtn.onclick = async () => {
@@ -128,14 +139,14 @@ function init() {
             }).connect(masterReverb);
 
             new Tone.Loop(time => {
-                if (Math.random() < 0.6) {
-                    const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
-                    chimePoly.triggerAttackRelease(note, "32n", time);
-                }
-                if (Tone.Transport.getTicksAtTime(time) % Tone.Ticks("1n").toNumber() === 0) {
-                    natureBase.triggerAttackRelease(SCALES.low[0], "1n", time);
-                }
-            }, "8n").start(0);
+            // This probability now scales with the Urban Density!
+            const prob = 0.1 + ((currentRatios.red + currentRatios.grey) * 0.8);
+    
+            if (Math.random() < prob) {
+            const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
+            chimePoly.triggerAttackRelease(note, "32n", time);
+            }
+            }, "16n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
