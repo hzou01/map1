@@ -10,18 +10,19 @@ let currentRatios = { urban: 0.5, blue: 0.1, green: 0.1 };
 let debounceTimer;
 
 function init() {
-    // Starting in NYC to test the universal logic
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([40.7128, -74.0060], 14);
+    // BACK TO PROVIDENCE: RISD / Brown University Area
+    const PVD_COORDS = [41.8268, -71.4025];
     
-    // This provides that "Shortbread/Voyager" aesthetic you liked
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView(PVD_COORDS, 15);
+    
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
         attribution: 'OpenStreetMap'
     }).addTo(map);
 
-    marker = L.marker([40.7128, -74.0060], { draggable: true }).addTo(map);
+    marker = L.marker(PVD_COORDS, { draggable: true }).addTo(map);
 
     const slider = document.getElementById('radius-slider');
-    const radiusDisplay = document.getElementById('radius-value'); // Ensure you have an element for this
+    const radiusDisplay = document.getElementById('radius-value');
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
 
@@ -30,16 +31,14 @@ function init() {
         const latlng = marker.getLatLng();
 
         try {
-            // UNIVERSAL SENSING: Works in NYC, London, Tokyo, etc.
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18`);
             const data = await res.json();
             
-            const category = data.class || ""; // 'water', 'highway', 'natural'
-            const type = data.type || "";      // 'river', 'residential', 'park'
+            const category = data.class || ""; 
+            const type = data.type || "";      
             
             console.log(`Probe Sense: ${category} | ${type}`);
 
-            // Logic mapped to your industrial/natural balance
             if (category === "water" || type.includes("river") || category === "coastline") {
                 currentRatios = { urban: 0.05, blue: 0.9, green: 0.05 };
             } else if (category === "natural" || category === "park" || type === "wood" || type === "forest") {
@@ -50,14 +49,12 @@ function init() {
             
             updateAudioEngine();
         } catch (e) {
-            console.warn("Sensor delay—retaining current state.");
+            console.warn("API throttle - keeping state.");
         }
     }
 
     function syncProbe() {
         const radiusMeters = parseInt(slider.value);
-        
-        // FIX: Update the display number next to the slider
         if (radiusDisplay) radiusDisplay.innerText = `${radiusMeters}m`;
 
         const centerLatLng = marker.getLatLng();
@@ -77,8 +74,10 @@ function init() {
 
     function updateAudioEngine() {
         const { urban, blue, green } = currentRatios;
-        const targetBPM = 52 + (urban * 88) - (blue * 12);
-        Tone.Transport.bpm.rampTo(Math.max(45, targetBPM), 0.5);
+        
+        // Ensure BPM never drops to 0 (which causes the 'stuck' feeling)
+        const targetBPM = 55 + (urban * 85) - (blue * 10);
+        Tone.Transport.bpm.rampTo(Math.max(50, targetBPM), 0.5);
 
         chimePoly.set({ 
             modulationIndex: 12 * urban + 4 * blue + 3 * green,
@@ -90,13 +89,18 @@ function init() {
 
         const rel = 0.5 + (blue * 12) + (green * 4);
         chimePoly.set({ envelope: { release: rel } });
+        
+        // RESTART WATCHDOG: If Transport stopped, restart it
+        if (Tone.Transport.state !== "started") {
+            Tone.Transport.start();
+        }
     }
 
     startBtn.onclick = async () => {
         try {
             await Tone.start();
             masterGain = new Tone.Gain(0).toDestination();
-            masterGain.gain.rampTo(1, 1.5); // Smooth fade-in (no explosion)
+            masterGain.gain.rampTo(1, 1.5); 
 
             masterReverb = new Tone.Reverb({ decay: 9, wet: 0.25 }).connect(masterGain);
 
@@ -112,8 +116,10 @@ function init() {
             waterFlow = new Tone.Noise("pink").connect(waterFilter);
             waterFlow.start();
 
+            // FIXED LOOP: Higher probability and strictly timed
             new Tone.Loop(time => {
-                if (Math.random() < 0.78) {
+                // Ensure nodes fire even in nature (85% probability)
+                if (Math.random() < 0.85) {
                     let scale = SCALES.high;
                     if (currentRatios.blue > 0.6) scale = SCALES.low;
                     else if (currentRatios.green > 0.5) scale = SCALES.mid;
