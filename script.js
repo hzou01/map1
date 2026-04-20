@@ -1,4 +1,3 @@
-// 1. THE THEME & SCALES
 const MAP_THEME = {
     HIGHWAY_RED:   "#DC96A2", 
     ROAD_ORANGE:   "#F6D8A9", 
@@ -17,151 +16,134 @@ const SCALES = {
 
 let map, marker, chimePoly, natureBase, waterPad, masterReverb, noiseSynth, waterFlow;
 let isAudioActive = false;
-let currentRatios = { red: 0, orange: 0, yellow: 0.1, white: 0.1, grey: 0.1, green: 0, blue: 0 };
+let currentRatios = { red: 0, orange: 0, yellow: 0.2, white: 0.2, grey: 0.2, green: 0, blue: 0 };
 
 function init() {
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
+    // 1. Initialize Map
+    map = L.map('map', { 
+        zoomControl: false, 
+        attributionControl: false,
+        fadeAnimation: false // Helps with visual sync
+    }).setView([41.8245, -71.4128], 14);
+    
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const slider = document.getElementById('radius-slider');
     const radiusVal = document.getElementById('radius-value');
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
+    
     marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
+    // 2. The Absolute Alignment Function
     function syncProbe() {
         const radiusMeters = parseInt(slider.value);
         if(radiusVal) radiusVal.innerText = radiusMeters + "m";
 
         const center = marker.getLatLng();
-        detectFeatures(center);
+        detectFeatures(center, radiusMeters);
 
+        // Get pixel position relative to the CONTAINER, not the window
+        const mapSize = map.getSize();
         const centerPoint = map.latLngToContainerPoint(center);
+        
         const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
         const pixelRadius = radiusMeters / metersPerPixel;
 
-        // Visual fix: Ensure the hole is centered exactly on the marker
-        const fullPath = `M 0 0 H ${window.innerWidth + 500} V ${window.innerHeight + 500} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
-        frost.style.clipPath = `path('${fullPath}')`;
+        // Path logic: Big rectangle covering the view - Circle hole
+        // We use viewport units to ensure it covers everything
+        const vW = window.innerWidth;
+        const vH = window.innerHeight;
         
+        const fullPath = `M 0 0 H ${vW} V ${vH} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
+        
+        frost.style.clipPath = `path('${fullPath}')`;
         updateAudioEngine();
     }
 
-    function detectFeatures(latlng) {
-    const slider = document.getElementById('radius-slider');
-    const currentRadius = parseInt(slider.value);
-    
-    // The "Sensing Range" now grows with your probe radius
-    // This prevents the sound from 'snapping' back to urban defaults at large scales
-    const sensingRange = Math.max(currentRadius * 1.5, 2000);
+    // 3. Aggregate Sensing (Works at 10,000m)
+    function detectFeatures(latlng, radius) {
+        // Sensing distance scales with probe size
+        const senseScale = Math.max(radius, 2000);
 
-    // WATER: Deep Harbor/Bay
-    const toWater = latlng.distanceTo([41.81, -71.39]); 
-    currentRatios.blue = Math.max(0, 1 - (toWater / (sensingRange * 1.2)));
+        const toWater = latlng.distanceTo([41.815, -71.395]); 
+        const toPark = latlng.distanceTo([41.831, -71.415]); 
+        const toRoad = latlng.distanceTo([41.818, -71.418]);
 
-    // FOREST/PARKS: Mountains & Soft Greenery
-    const toPark = latlng.distanceTo([41.83, -71.41]); 
-    currentRatios.green = Math.max(0, 1 - (toPark / sensingRange));
+        currentRatios.blue = Math.max(0, 1 - (toWater / (senseScale * 1.5)));
+        currentRatios.green = Math.max(0, 1 - (toPark / senseScale));
+        currentRatios.red = Math.max(0, 1 - (toRoad / (senseScale * 0.4)));
 
-    // INDUSTRIAL: Roads & Resonance
-    const toRoad = latlng.distanceTo([41.818, -71.415]);
-    currentRatios.red = Math.max(0, 1 - (toRoad / (sensingRange * 0.5)));
-
-    // URBAN: Pop-out Density
-    // Residential (Grey) and Streets (White) fill the gaps
-    const natureDominance = currentRatios.blue + currentRatios.green;
-    currentRatios.grey = Math.max(0.1, 0.5 - natureDominance);
-    currentRatios.white = Math.max(0.1, 0.5 - natureDominance);
-}
+        // Aggressive Temporal Drag Variables
+        updateAudioEngine();
+    }
 
     function updateAudioEngine() {
-    if (!isAudioActive) return;
+        if (!isAudioActive) return;
 
-    // --- TEMPORAL DRAG ---
-    // If Blue is 1.0, BPM drops to 25. If Blue is 0.0, BPM is 120.
-    const dragMultiplier = Math.pow(currentRatios.blue, 2); // Exponential curve for 'heavy' feel
-    const targetBPM = 120 - (dragMultiplier * 95) - (currentRatios.green * 40);
-    
-    // Constrain BPM to a minimum of 20 so it doesn't stop entirely
-    Tone.Transport.bpm.rampTo(Math.max(20, targetBPM), 1.5);
+        // THE SLOWDOWN: Exponential Drag
+        // If blue is high, drag pulls BPM from 120 down to 15
+        const drag = Math.pow(currentRatios.blue, 1.5) + (currentRatios.green * 0.5);
+        const targetBPM = 120 - (drag * 105);
+        Tone.Transport.bpm.rampTo(Math.max(15, targetBPM), 1);
 
-    // --- SYMPHONIC PROLONGING ---
-    // Increases the "Tail" of the notes based on Water/Green
-    const tailLength = 1 + (currentRatios.blue * 18) + (currentRatios.green * 10);
-    
-    // Map features to specific sound effects
-    waterPad.set({ envelope: { release: tailLength } });
-    natureBase.set({ envelope: { release: tailLength * 1.2 } });
-    
-    // Industrial Noise (Red/Orange)
-    const industrialGain = -60 + (currentRatios.red * 45);
-    noiseSynth.volume.rampTo(industrialGain, 1);
+        // THE PROLONG: Increase release based on nature
+        const stretch = 1 + (currentRatios.blue * 20);
+        chimePoly.set({ envelope: { release: stretch * 0.5 } });
+        natureBase.set({ envelope: { release: stretch * 2 } });
 
-    // Soothing Water Flow (Blue)
-    const waterGain = -55 + (currentRatios.blue * 30);
-    waterFlow.volume.rampTo(waterGain, 2);
-}
+        // VOLUMES
+        noiseSynth.volume.rampTo(-60 + (currentRatios.red * 40), 0.5);
+        waterFlow.volume.rampTo(-55 + (currentRatios.blue * 35), 1);
+    }
 
+    // 4. Tone.js Initialization
     startBtn.onclick = async () => {
         try {
             await Tone.start();
-            const limiter = new Tone.Limiter(-2).toDestination();
-            masterReverb = new Tone.Reverb({ decay: 15, wet: 0.2 }).connect(limiter);
+            const limiter = new Tone.Limiter(-1).toDestination();
+            masterReverb = new Tone.Reverb({ decay: 15, wet: 0.3 }).connect(limiter);
 
-            // Industrial Noise
-            const crush = new Tone.BitCrusher(4).connect(masterReverb);
-            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(150, "bandpass").connect(crush));
+            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(100, "bandpass").connect(masterReverb));
             noiseSynth.start();
 
-            // Water Soothe
-            waterFlow = new Tone.Noise("pink").connect(new Tone.AutoFilter("2n").connect(masterReverb).start());
+            waterFlow = new Tone.Noise("pink").connect(new Tone.AutoFilter("1n").connect(masterReverb).start());
             waterFlow.start();
 
-            // Heavy Bass
             natureBase = new Tone.MonoSynth({
                 oscillator: { type: "fatsawtooth", count: 3 },
-                envelope: { attack: 2, release: 10 }
-            }).connect(new Tone.Filter(65, "lowpass").connect(masterReverb));
+                envelope: { attack: 3, release: 12 }
+            }).connect(new Tone.Filter(60, "lowpass").connect(masterReverb));
 
-            // Urban Nodes
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                harmonicity: 3,
-                envelope: { attack: 0.01, release: 1.5 }
+                harmonicity: 2,
+                envelope: { attack: 0.05, release: 1 }
             }).connect(masterReverb);
 
-            waterPad = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "triangle" },
-                envelope: { attack: 4, release: 12 }
-            }).connect(masterReverb);
-
-            // THE LOOP
             new Tone.Loop(time => {
-                const urbanDensity = currentRatios.grey + currentRatios.yellow;
-                if (Math.random() < (0.1 + urbanDensity * 0.7)) {
+                if (Math.random() < 0.6) {
                     const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
                     chimePoly.triggerAttackRelease(note, "32n", time);
                 }
-
                 if (Tone.Transport.getTicksAtTime(time) % Tone.Ticks("1n").toNumber() === 0) {
-                    const bNote = SCALES.low[Math.floor(Math.random() * SCALES.low.length)];
-                    natureBase.triggerAttackRelease(bNote, "1n", time);
+                    natureBase.triggerAttackRelease(SCALES.low[0], "1n", time);
                 }
-            }, "16n").start(0);
+            }, "8n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
-            startBtn.innerText = "SYSTEM ONLINE";
-            syncProbe(); // Run immediately on start
+            startBtn.innerText = "PROBE ACTIVE";
+            syncProbe();
         } catch (e) { console.error(e); }
     };
 
-    // Listeners for real-time sync
+    // Listeners for real-time alignment
     slider.oninput = syncProbe;
     map.on('move zoom', syncProbe);
     marker.on('drag', syncProbe);
 
-    // CALL ONCE ON INITIAL LOAD
-    setTimeout(syncProbe, 500); 
+    // Initial Sync
+    setTimeout(syncProbe, 100);
 }
 
 window.onload = init;
