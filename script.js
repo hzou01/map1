@@ -69,55 +69,58 @@ function init() {
 }
 
     // 3. Aggregate Sensing (Works at 10,000m)
-    function detectFeatures(latlng) {
-    const distToCenter = latlng.distanceTo([41.824, -71.412]);
-
-    // If within 2km of downtown, we are "Urban"
-    if (distToCenter < 2000) {
-        currentRatios.red = 0.8;
-        currentRatios.grey = 0.4;
-        currentRatios.blue = 0.1;
-    } else {
-        // We are in the Bay or the Woods
-        currentRatios.red = 0.1;
-        currentRatios.grey = 0.1;
-        currentRatios.blue = 0.9;
-    }
+   function detectFeatures(latlng) {
+    const zoom = map.getZoom();
     
+    // 1. ZOOM-BASED DENSITY
+    // We treat zoom level as the "Complexity" of the map.
+    // Boston at Zoom 14 (your screenshot) = Medium-High Energy.
+    const zoomFactor = Math.min(1.0, Math.max(0, (zoom - 11) / 7));
+
+    // 2. THE INFRASTRUCTURE SENSOR
+    // We assume if you aren't in the deep ocean, you are in a "Built" environment.
+    // We sense how close we are to the 'Urban Core' (using Boston/Providence/NYC as anchors)
+    const isWater = latlng.lat < 42.34 && latlng.lng > -71.03; // Example: Boston Harbor check
+    
+    if (zoom < 11 || isWater) {
+        currentRatios.blue = 0.9;
+        currentRatios.urban = 0.1;
+    } else {
+        // This is a "Built" environment (Red + Orange + Yellow + Grey)
+        currentRatios.urban = zoomFactor * 0.9;
+        currentRatios.blue = 1.0 - currentRatios.urban;
+    }
+
     updateAudioEngine();
 }
 
     function updateAudioEngine() {
     if (!isAudioActive) return;
 
-    // 1. CALCULATE DOMINANCE
-    const urbanDensity = (currentRatios.red + currentRatios.grey + currentRatios.yellow);
-    const waterPresence = currentRatios.blue;
+    // A. SNAP-BACK SPEED (BPM)
+    // Now scales with the total 'Built' environment.
+    // In Boston (high urban), BPM hits 145. In the Harbor, it drops to 25.
+    const targetBPM = 25 + (currentRatios.urban * 120);
+    Tone.Transport.bpm.rampTo(targetBPM, 0.3); // Very fast 'snap' for responsive feel
 
-    // 2. SPEED REGAIN (BPM)
-    // snapped to a faster base (130) for the city, dropping to 20 for the ocean
-    const targetBPM = 25 + (urbanDensity * 105); 
-    Tone.Transport.bpm.rampTo(Math.max(20, targetBPM), 0.8);
-
-    // 3. EXTENDED NODES (The "Symphonic" Stretch)
-    // In the city, release is 0.5s. In the ocean, notes ring for 15s.
-    const nodeRelease = 0.5 + (waterPresence * 14.5);
+    // B. NODE EXTENSION (Ocean Release)
+    // City = 0.15s (Machine-like) | Water = 18s (Ghostly)
+    const nodeRelease = 0.15 + (currentRatios.blue * 17.85);
     chimePoly.set({ 
-        envelope: { release: nodeRelease },
-        resonance: 0.5 + (waterPresence * 0.4) 
+        envelope: { 
+            attack: 0.005 + (currentRatios.blue * 1.5),
+            release: nodeRelease 
+        } 
     });
 
-    // 4. INDUSTRIAL PERSISTENCE FIX
-    // We force the Industrial noise to die when Water is high
-    const noiseGain = -60 + (urbanDensity * 40) - (waterPresence * 20);
-    noiseSynth.volume.rampTo(Math.min(-20, noiseGain), 0.5);
-
-    // 5. WATER BASE
-    // Only bring in the "Flowing" sound when actually near blue
-    waterFlow.volume.rampTo(-60 + (waterPresence * 35), 1.5);
+    // C. ROAD RESONANCE (The Industrial Hum)
+    // Increases the distortion and volume when in the Urban zone
+    const industrialGain = -55 + (currentRatios.urban * 40);
+    noiseSynth.volume.rampTo(Math.min(-15, industrialGain), 0.2);
     
-    // Cloudiness (Reverb) increases in water, clears up in the city
-    masterReverb.wet.rampTo(0.1 + (waterPresence * 0.7), 1);
+    // D. REVERB MUSH
+    // Dries out in the city for clarity; gets cloudy in the water
+    masterReverb.wet.rampTo(0.05 + (currentRatios.blue * 0.8), 0.5);
 }
 
     // 4. Tone.js Initialization
@@ -144,12 +147,12 @@ function init() {
             }).connect(masterReverb);
 
             new Tone.Loop(time => {
-            // This probability now scales with the Urban Density!
-            const prob = 0.1 + ((currentRatios.red + currentRatios.grey) * 0.8);
+            // Probability is almost 100% in dense urban areas
+            const spawnProb = 0.1 + (currentRatios.urban * 0.85);
     
-            if (Math.random() < prob) {
+            if (Math.random() < spawnProb) {
             const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
-            chimePoly.triggerAttackRelease(note, "32n", time);
+            chimePoly.triggerAttackRelease(note, "64n", time);
             }
             }, "16n").start(0);
 
