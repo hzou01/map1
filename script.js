@@ -14,112 +14,117 @@ const SCALES = {
     low: ["C1", "Eb1", "G1"]
 };
 
-let map, marker, chimePoly, noiseSynth, masterReverb;
+let map, marker, chimePoly, noiseSynth, masterReverb, waterFlow;
 let isAudioActive = false;
-let currentRatios = { urban: 0.5, blue: 0.5 };
+let currentRatios = { urban: 0.5, blue: 0.1, green: 0.1 };
 
 function init() {
-    // 1. Initialize Map & Marker
-    map = L.map('map', { 
-        zoomControl: false, 
-        attributionControl: false,
-        fadeAnimation: false 
-    }).setView([42.345, -71.07], 14); // Boston View
-    
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([42.345, -71.07], 14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-    const slider = document.getElementById('radius-slider');
-    const radiusVal = document.getElementById('radius-value');
-    const frost = document.getElementById('frost-layer');
-    const startBtn = document.getElementById('start-btn');
-    
     marker = L.marker([42.345, -71.07], { draggable: true }).addTo(map);
 
-    // 2. The Absolute Alignment Function
+    const slider = document.getElementById('radius-slider');
+    const frost = document.getElementById('frost-layer');
+    const startBtn = document.getElementById('start-btn');
+
     function syncProbe() {
         const radiusMeters = parseInt(slider.value);
-        if (radiusVal) radiusVal.innerText = radiusMeters + "m";
-
         const centerLatLng = marker.getLatLng();
         const centerPoint = map.latLngToContainerPoint(centerLatLng);
-
         const zoom = map.getZoom();
         const metersPerPixel = 156543.03392 * Math.cos(centerLatLng.lat * Math.PI / 180) / Math.pow(2, zoom);
         const pixelRadius = radiusMeters / metersPerPixel;
 
         const w = window.innerWidth;
         const h = window.innerHeight;
-
         const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
-
         frost.style.clipPath = `path('${fullPath}')`;
 
-        // SENSOR: Using Zoom as a reliable Universal Proxy
-        let intensity = Math.min(1.0, Math.max(0.1, (zoom - 11) / 7));
-        currentRatios.urban = intensity;
-        currentRatios.blue = 1.0 - intensity;
+        // ENVIRONMENTAL SENSING LOGIC
+        const distToProv = centerLatLng.distanceTo([41.824, -71.412]);
+        const distToBoston = centerLatLng.distanceTo([42.358, -71.057]);
+        const isUrban = distToProv < 3000 || distToBoston < 4000 || zoom > 15;
+        
+        // Check for Water (Simplified check for Charles River/Providence River/Bay)
+        const isWater = centerLatLng.lng > -71.04 || (centerLatLng.lat < 41.81 && centerLatLng.lng > -71.40);
+
+        currentRatios.urban = isUrban ? 0.9 : 0.2;
+        currentRatios.blue = isWater ? 0.8 : 0.1;
+        currentRatios.green = (!isUrban && !isWater) ? 0.7 : 0.1;
 
         if (isAudioActive) updateAudioEngine();
     }
 
     function updateAudioEngine() {
-        const urban = currentRatios.urban;
-        const blue = currentRatios.blue;
+        const { urban, blue, green } = currentRatios;
 
-        // BPM: 40 (Nature) to 140 (City)
-        Tone.Transport.bpm.rampTo(40 + (urban * 100), 0.3);
+        // 1. TEMPORAL DRAG: Rivers and Oceans slow down the rhythm
+        const targetBPM = 35 + (urban * 105) - (blue * 20);
+        Tone.Transport.bpm.rampTo(Math.max(22, targetBPM), 0.5);
 
-        // NODES: Ensure they are LOUD and Clear
-        chimePoly.volume.value = -4; 
-        const nodeRelease = 0.2 + (blue * 10);
-        chimePoly.set({ envelope: { release: nodeRelease } });
+        // 2. THE LIQUID TONE: FM Modulation Index
+        // Urban = High index (Metallic/Glass). Green = Low index (Soft/Pure).
+        const modIndex = 12 * urban + 2 * green; 
+        chimePoly.set({ 
+            modulationIndex: modIndex,
+            harmonicity: 1.5 + (urban * 2) 
+        });
 
-        // NOISE: Keep it as a background texture
-        const noiseVol = -60 + (urban * 30);
-        noiseSynth.volume.rampTo(noiseVol, 0.5);
+        // 3. INDUSTRIAL RESONANCE: Road noise increases near urban density
+        const noiseVol = -65 + (urban * 38);
+        const noiseCutoff = 200 + (urban * 600);
+        noiseSynth.volume.rampTo(noiseVol, 0.4);
+        noiseSynth.filter.frequency.rampTo(noiseCutoff, 0.4);
+
+        // 4. SYMPHONIC PROLONGING: Extension in water
+        const release = 0.3 + (blue * 14.7) + (green * 3);
+        chimePoly.set({ envelope: { release: release } });
+        
+        masterReverb.wet.rampTo(0.1 + (blue * 0.7), 1);
     }
 
-    // 3. Audio Initialization
     startBtn.onclick = async () => {
         try {
             await Tone.start();
-            
-            // Reverb for atmosphere
-            masterReverb = new Tone.Reverb({ decay: 6, wet: 0.2 }).toDestination();
+            masterReverb = new Tone.Reverb({ decay: 12, wet: 0.2 }).toDestination();
 
-            // CHIMES: Triangle wave is more audible than Sine
+            // THE FM SYNTH: Optimized for that "Liquid Glass" tone
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                oscillator: { type: "fatsine4" },
-                envelope: { attack: 0.01, release: 1 }
+                modulationIndex: 10,
+                harmonicity: 3,
+                oscillator: { type: "sine" },
+                modulation: { type: "square" },
+                envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 1 }
             }).connect(masterReverb);
 
-            // INDUSTRIAL NOISE: Filtered brown noise
-            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(250, "lowpass").toDestination());
+            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(300, "lowpass").toDestination());
             noiseSynth.start();
 
-            // GUARANTEED HEARTBEAT LOOP
+            // DYNAMIC LOOP: Scales and probability change with the map
             new Tone.Loop(time => {
-                const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
-                // Force triggering every 8th note for testing
-                chimePoly.triggerAttackRelease(note, "16n", time, 0.8);
+                const prob = 0.2 + (currentRatios.urban * 0.7);
+                if (Math.random() < prob) {
+                    let scale = SCALES.high;
+                    if (currentRatios.blue > 0.6) scale = SCALES.low;
+                    else if (currentRatios.green > 0.5) scale = SCALES.mid;
+
+                    const note = scale[Math.floor(Math.random() * scale.length)];
+                    chimePoly.triggerAttackRelease(note, "32n", time, 0.7);
+                }
             }, "8n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
-            startBtn.innerText = "PROBE ACTIVE";
+            startBtn.innerText = "SYSTEM ONLINE";
             updateAudioEngine();
-        } catch (e) { console.error("Audio Error:", e); }
+        } catch (e) { console.error(e); }
     };
 
-    // Listeners
     slider.oninput = syncProbe;
     map.on('move zoom', syncProbe);
     marker.on('drag', syncProbe);
 
-    // FIX: Force the circle to draw immediately after Map is ready
-    map.whenReady(() => {
-        setTimeout(syncProbe, 150);
-    });
+    map.whenReady(() => setTimeout(syncProbe, 100));
 }
 
 window.onload = init;
