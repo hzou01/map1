@@ -1,11 +1,24 @@
+// 1. THE EXACT COLOR PALETTE
+const MAP_THEME = {
+    HIGHWAY_RED:   "#DC96A2", // Major Interchanges
+    ROAD_ORANGE:   "#F6D8A9", // Main Arteries / Connectors
+    STREET_YELLOW: "#F8FAC4", // Local City Grid
+    HOUSE_GREY:    "#D8D1C9", // Residential
+    PARK_GREEN:    "#B4D0A2", // Nature/Cemeteries
+    WATER_BLUE:    "#B2D2DE"  // Rivers/Harbor
+};
+
+// 2. THE AUDIO STATE
 let map, marker, chimePoly, natureBase, waterPad, masterReverb;
 let isAudioActive = false;
-let ratios = { green: 0.2, gray: 0.6, blue: 0.2 }; 
+
+// Updated Ratios to include Orange
+let currentRatios = { red: 0, orange: 0, yellow: 0.2, grey: 0.2, green: 0.2, blue: 0.4 };
 
 const SCALES = {
     high: ["C5", "Eb5", "G5", "Bb5", "C6"],
-    mid: ["G3", "Bb3", "C4"],
-    low: ["C1", "G1"]
+    mid: ["G3", "Bb3", "C4"], 
+    low: ["C1", "G1"]         
 };
 
 function init() {
@@ -28,86 +41,98 @@ function init() {
         const fullPath = `M 0 0 H ${window.innerWidth + 200} V ${window.innerHeight + 200} H 0 Z M ${holeX} ${holeY} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
         frost.style.clipPath = `path('${fullPath}')`;
         
-        updateAudioParams();
+        updateAudioEngine();
     }
 
-    function updateAudioParams() {
+    // 3. THE SYMPHONIC MIXER
+    function updateAudioEngine() {
         if (!isAudioActive) return;
 
-        // 1. URBAN (High): Speed & Filter
-        Tone.Transport.bpm.rampTo(80 + (ratios.gray * 100), 1);
-        chimePoly.volume.rampTo(-15 + (ratios.gray * 10), 0.5);
+        // URBAN SPEED: Yellow is base city speed, Orange/Red are high-speed transit
+        const roadSpeed = (currentRatios.red * 2.0) + (currentRatios.orange * 1.5) + currentRatios.yellow;
+        const tempo = 75 + (roadSpeed * 125); 
+        Tone.Transport.bpm.rampTo(tempo, 1);
+        
+        // Volume of Chimes
+        chimePoly.volume.rampTo(-15 + (roadSpeed * 12), 0.5);
 
-        // 2. WATER (Mid): Stretched Reverb & Volume
-        // As blue increases, the sound gets "Cloudier"
-        masterReverb.wet.rampTo(0.1 + (ratios.blue * 0.8), 1);
-        waterPad.volume.rampTo(-35 + (ratios.blue * 25), 1);
+        // WATER CLOUDINESS (Blue)
+        masterReverb.wet.rampTo(0.05 + (currentRatios.blue * 0.85), 1.5);
+        waterPad.volume.rampTo(-30 + (currentRatios.blue * 25), 1.5);
 
-        // 3. NATURE (Low): Mushy Base Swell
-        natureBase.volume.rampTo(-40 + (ratios.green * 30), 1);
+        // MUSHY BASS (Green)
+        natureBase.volume.rampTo(-40 + (currentRatios.green * 35), 1.5);
     }
 
+    // 4. AUDIO INITIALIZATION
     startBtn.onclick = async () => {
         try {
             await Tone.start();
 
-            // GLOBAL EFFECTS
-            masterReverb = new Tone.Reverb({ decay: 8, wet: 0.2 }).toDestination();
-            const chorus = new Tone.Chorus(2, 2, 0.5).connect(masterReverb).start();
+            masterReverb = new Tone.Reverb({ decay: 12, wet: 0.1 }).toDestination();
 
-            // HIGH CHIMES
+            // High Chimes: FM Synth for that metallic/glassy feel
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                envelope: { attack: 0.1, release: 2 }
-            }).connect(chorus);
+                harmonicity: 2.5,
+                envelope: { attack: 0.05, release: 1.5 }
+            }).connect(masterReverb);
 
-            // MID STRETCH (The "Cloudy" Layer)
+            // Mid Pad: Triangle wave for "Medium" tonality
             waterPad = new Tone.PolySynth(Tone.Synth, {
                 oscillator: { type: "triangle" },
-                envelope: { attack: 4, release: 10 }
-            }).connect(chorus);
+                envelope: { attack: 4, release: 12 }
+            }).connect(masterReverb);
 
-            // LOW MUSHY BASE
-            const lowFilter = new Tone.Filter(150, "lowpass").connect(masterReverb);
-            natureBase = new Tone.PolySynth(Tone.Synth, {
+            // Low Base: MonoSynth ensures it never stops or gets "stolen"
+            const lowFilter = new Tone.Filter(85, "lowpass").connect(masterReverb);
+            natureBase = new Tone.MonoSynth({
                 oscillator: { type: "sine" },
-                envelope: { attack: 2, release: 6 }
+                envelope: { attack: 2, release: 8 }
             }).connect(lowFilter);
 
-            // THE GENERATIVE LOOP
+            // GENERATIVE LOOP
             new Tone.Loop(time => {
-                // High Layer: Urban (16th notes)
-                if (Math.random() < (0.1 + ratios.gray * 0.7)) {
+                // High-speed Urban Pings (Yellow/Orange/Red)
+                const urbanProb = 0.1 + (currentRatios.yellow * 0.6) + (currentRatios.orange * 0.3);
+                if (Math.random() < urbanProb) {
                     const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
                     chimePoly.triggerAttackRelease(note, "16n", time);
                 }
 
-                // Mid & Low Layers: Triggered on every Half Note (Steady Pulse)
+                // Base & Mid Foundation (Steady 2n pulse)
                 if (Tone.Transport.getTicksAtTime(time) % Tone.Ticks("2n").toNumber() === 0) {
-                    // Nature Base
-                    const bNote = SCALES.low[Math.floor(Math.random() * SCALES.low.length)];
-                    natureBase.triggerAttackRelease(bNote, "1n", time);
-
-                    // Water Pad
-                    const mNote = SCALES.mid[Math.floor(Math.random() * SCALES.mid.length)];
-                    waterPad.triggerAttackRelease(mNote, "1n", time);
+                    if (Math.random() < (currentRatios.green + 0.3)) {
+                        const bNote = SCALES.low[Math.floor(Math.random() * SCALES.low.length)];
+                        natureBase.triggerAttackRelease(bNote, "1n", time);
+                    }
+                    if (Math.random() < (currentRatios.blue + 0.3)) {
+                        const mNote = SCALES.mid[Math.floor(Math.random() * SCALES.mid.length)];
+                        waterPad.triggerAttackRelease(mNote, "1n", time);
+                    }
                 }
             }, "8n").start(0);
 
             Tone.Transport.start();
             startBtn.innerText = "PROBE ACTIVE";
             isAudioActive = true;
+            syncProbe();
         } catch (err) { console.error(err); }
     };
 
     slider.oninput = syncProbe;
     map.on('zoom move', syncProbe);
     marker.on('drag', syncProbe);
+
+    // Simulated ChromaKey detection on release
     marker.on('dragend', () => {
-        ratios.green = Math.random(); 
-        ratios.gray = Math.random();
-        ratios.blue = 1 - (ratios.green + ratios.gray);
+        currentRatios.red = Math.random() * 0.3;
+        currentRatios.orange = Math.random() * 0.5; // New Orange Detection
+        currentRatios.yellow = Math.random() * 0.7;
+        currentRatios.green = Math.random(); 
+        currentRatios.blue = Math.random();
         syncProbe();
     });
+
     setTimeout(syncProbe, 100);
 }
 
