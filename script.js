@@ -18,7 +18,7 @@ let isPaused = false;
 let currentRadius = 400;
 
 function init() {
-    const startPos = [41.8245, -71.4128]; 
+    const startPos = [41.827136,-71.409172]; 
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView(startPos, 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
     marker = L.marker(startPos, { draggable: true }).addTo(map);
