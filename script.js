@@ -4,65 +4,69 @@ const SCALES = {
     low: ["C2", "G2", "C3", "Eb3"]         
 };
 
+// HAND-CODED GEOGRAPHY
+const ZONES = {
+    PVD: { center: [41.8245, -71.4128], radius: 2500 }, // Providence
+    BOS: { center: [42.3601, -71.0589], radius: 4000 }, // Boston
+    NYC: { center: [40.7128, -74.0060], radius: 6000 }, // New York
+    WOR: { center: [42.2626, -71.8023], radius: 2000 }, // Worcester
+    NHV: { center: [41.3083, -72.9279], radius: 2000 }  // New Haven
+};
+
 let map, marker, chimePoly, noiseSynth, waterFlow, masterReverb, masterGain;
 let isAudioActive = false;
 let currentRatios = { urban: 0.5, blue: 0.1, green: 0.1 };
-let lastCheck = 0;
 
 function init() {
-    // 1. START AT CENTRAL PROVIDENCE (Kennedy Plaza / Burnside Park)
-    const CENTRAL_PVD = [41.8245, -71.4128];
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CENTRAL_PVD, 16);
+    // STARTING LOCATION: Kennedy Plaza, Providence
+    const startPos = [41.8245, -71.4128];
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView(startPos, 15);
     
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    marker = L.marker(CENTRAL_PVD, { draggable: true }).addTo(map);
+    marker = L.marker(startPos, { draggable: true }).addTo(map);
 
     const slider = document.getElementById('radius-slider');
+    const radiusDisplay = document.getElementById('radius-value'); // Make sure this ID exists in HTML
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
 
-    // 2. THE SENSOR WITH VISUAL FEEDBACK
-    async function sampleEnvironment() {
-        if (!isAudioActive) return;
+    function detectZone(latlng) {
+        let inUrban = false;
         
-        const now = Date.now();
-        if (now - lastCheck < 900) return; // Wait 900ms between pings to avoid blocks
-        lastCheck = now;
-
-        const latlng = marker.getLatLng();
-        try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18`);
-            const data = await res.json();
-            
-            const cat = data.class || ""; 
-            const type = data.type || ""; 
-            
-            // Log to console so you can see it working
-            console.log(`Probe Sense: ${cat} | ${type}`);
-
-            // Robust Land-Use Mapping
-            const isWater = cat === "water" || type.includes("river") || type.includes("canal") || cat === "coastline";
-            const isNature = cat === "natural" || cat === "park" || type === "wood" || type === "forest" || type === "garden" || type === "grass";
-
-            if (isWater) {
-                currentRatios = { urban: 0.05, blue: 0.95, green: 0.0 };
-                marker.getElement().style.filter = "hue-rotate(180deg)"; // Turn Blue
-            } else if (isNature) {
-                currentRatios = { urban: 0.1, blue: 0.05, green: 0.85 };
-                marker.getElement().style.filter = "hue-rotate(90deg)"; // Turn Green
-            } else {
-                currentRatios = { urban: 0.9, blue: 0.05, green: 0.05 };
-                marker.getElement().style.filter = "none"; // Default
+        // Check if we are inside any of our hand-coded big city circles
+        for (let key in ZONES) {
+            const zone = ZONES[key];
+            const dist = latlng.distanceTo(zone.center);
+            if (dist < zone.radius) {
+                inUrban = true;
+                break;
             }
-            
-            updateAudioEngine();
-        } catch (e) {
-            console.warn("Sensor Blocked by API limits. Move slower!");
         }
+
+        // WATER LOGIC (Coastal / River checks)
+        const isNearWater = (latlng.lng > -71.405 && latlng.lat < 41.818) || // PVD River
+                            (latlng.lng > -71.050 && latlng.lat < 42.360) || // BOS Harbor
+                            (latlng.lng > -74.020 && latlng.lng < -73.98);   // NYC Rivers
+
+        if (isNearWater) {
+            currentRatios = { urban: 0.1, blue: 0.9, green: 0.0 };
+        } else if (inUrban) {
+            currentRatios = { urban: 0.9, blue: 0.05, green: 0.05 };
+        } else {
+            currentRatios = { urban: 0.2, blue: 0.1, green: 0.7 };
+        }
+        
+        if (isAudioActive) updateAudioEngine();
     }
 
     function syncProbe() {
         const radiusMeters = parseInt(slider.value);
+        
+        // FIX: Update the slider number display
+        if (radiusDisplay) {
+            radiusDisplay.innerText = radiusMeters + "m";
+        }
+
         const centerLatLng = marker.getLatLng();
         const centerPoint = map.latLngToContainerPoint(centerLatLng);
         const zoom = map.getZoom();
@@ -72,26 +76,25 @@ function init() {
         const w = window.innerWidth;
         const h = window.innerHeight;
         const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
+        
         frost.style.clipPath = `path('${fullPath}')`;
-
-        sampleEnvironment();
+        detectZone(centerLatLng);
     }
 
     function updateAudioEngine() {
         const { urban, blue, green } = currentRatios;
         const targetBPM = 55 + (urban * 85) - (blue * 12);
-        Tone.Transport.bpm.rampTo(Math.max(50, targetBPM), 0.5);
+        Tone.Transport.bpm.rampTo(Math.max(50, targetBPM), 0.2);
 
         chimePoly.set({ 
             modulationIndex: 12 * urban + 4 * blue + 3 * green,
             harmonicity: green > 0.5 ? 3.5 : (blue > 0.5 ? 1.4 : 2.5) 
         });
 
-        // Ensure these sounds actually cut out when not detected
-        waterFlow.volume.rampTo(blue > 0.5 ? -20 : -80, 0.8);
-        noiseSynth.volume.rampTo(urban > 0.5 ? -35 : -80, 0.8);
+        waterFlow.volume.rampTo(blue > 0.5 ? -20 : -80, 0.4);
+        noiseSynth.volume.rampTo(urban > 0.5 ? -35 : -80, 0.4);
 
-        const rel = 0.4 + (blue * 10) + (green * 4);
+        const rel = 0.5 + (blue * 10) + (green * 4);
         chimePoly.set({ envelope: { release: rel } });
     }
 
@@ -99,7 +102,7 @@ function init() {
         try {
             await Tone.start();
             masterGain = new Tone.Gain(0).toDestination();
-            masterGain.gain.rampTo(1, 1.2); 
+            masterGain.gain.rampTo(1, 1.0); 
 
             masterReverb = new Tone.Reverb({ decay: 10, wet: 0.25 }).connect(masterGain);
 
@@ -128,12 +131,13 @@ function init() {
 
             Tone.Transport.start();
             isAudioActive = true;
-            sampleEnvironment();
+            syncProbe();
+            startBtn.innerText = "PROBE ONLINE";
         } catch (e) { console.error(e); }
     };
 
     slider.oninput = syncProbe;
-    map.on('move zoom', syncProbe);
+    map.on('move zoom drag', syncProbe);
     marker.on('drag', syncProbe);
 }
 
