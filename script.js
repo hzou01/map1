@@ -14,17 +14,16 @@ const SCALES = {
     low: ["C1", "Eb1", "G1"]
 };
 
-let map, marker, chimePoly, natureBase, waterPad, masterReverb, noiseSynth, waterFlow;
+let map, marker, chimePoly, natureBase, noiseSynth, waterFlow, masterReverb;
 let isAudioActive = false;
-let currentRatios = { red: 0, orange: 0, yellow: 0.2, white: 0.2, grey: 0.2, green: 0, blue: 0 };
+let currentRatios = { urban: 0.5, blue: 0.1, red: 0.1 };
 
 function init() {
-    // 1. Initialize Map
+    // 1. Setup Map - Set to Boston coordinates from your screenshot
     map = L.map('map', { 
         zoomControl: false, 
-        attributionControl: false,
-        fadeAnimation: false // Helps with visual sync
-    }).setView([41.8245, -71.4128], 14);
+        attributionControl: false 
+    }).setView([42.345, -71.07], 14);
     
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
@@ -33,141 +32,114 @@ function init() {
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
     
-    marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
+    marker = L.marker([42.345, -71.07], { draggable: true }).addTo(map);
 
-    // 2. The Absolute Alignment Function
-   function syncProbe() {
-    const slider = document.getElementById('radius-slider');
-    const frost = document.getElementById('frost-layer');
-    const radiusVal = document.getElementById('radius-value');
+    // 2. The Alignment Logic
+    function syncProbe() {
+        const radiusMeters = parseInt(slider.value);
+        if(radiusVal) radiusVal.innerText = radiusMeters + "m";
 
-    const radiusMeters = parseInt(slider.value);
-    if (radiusVal) radiusVal.innerText = radiusMeters + "m";
+        const center = marker.getLatLng();
+        const centerPoint = map.latLngToContainerPoint(center);
+        
+        const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+        const pixelRadius = radiusMeters / metersPerPixel;
 
-    // 1. GET THE PIN'S ACTUAL SCREEN POSITION
-    // This is the "secret sauce" to stop the misalignment.
-    const centerLatLng = marker.getLatLng();
-    const centerPoint = map.latLngToContainerPoint(centerLatLng);
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        
+        const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
+        
+        frost.style.clipPath = `path('${fullPath}')`;
+        detectFeatures(center);
+    }
 
-    // 2. CONVERT METERS TO PIXELS
-    const zoom = map.getZoom();
-    const lat = centerLatLng.lat;
-    const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
-    const pixelRadius = radiusMeters / metersPerPixel;
+    // 3. The Universal Sensor Logic (Boston/NYC/Providence)
+    function detectFeatures(latlng) {
+        const zoom = map.getZoom();
+        
+        // Use Zoom + Distance to generalize 'Urban' vs 'Water'
+        // High zoom = more city streets. Low zoom = more open space.
+        let density = Math.min(1.0, Math.max(0.1, (zoom - 11) / 7));
+        
+        // Approximate Water Check (e.g., Boston Harbor / Providence River)
+        const isNearWater = latlng.lng > -71.04 || latlng.lat < 41.81;
+        
+        currentRatios.urban = isNearWater ? density * 0.3 : density;
+        currentRatios.blue = 1.0 - currentRatios.urban;
 
-    // 3. PUNCH THE HOLE AT THE PIN'S COORDINATES
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-
-    // We use the centerPoint.x and centerPoint.y we just calculated
-    const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
-
-    frost.style.clipPath = `path('${fullPath}')`;
-
-    // 4. UPDATE SOUND
-    detectFeatures(centerLatLng, radiusMeters);
-}
-
-    // 3. Aggregate Sensing (Works at 10,000m)
-   function detectFeatures(latlng) {
-    const zoom = map.getZoom();
-    
-    // Normalize zoom: 12 is 'Natural', 18 is 'Heavy Urban'
-    let zoomDensity = Math.min(1.0, Math.max(0, (zoom - 11) / 7));
-    
-    // Check for water specifically in the coordinates
-    const toWater = latlng.distanceTo([42.35, -71.05]); // Generic 'Water' anchor
-    const waterSense = Math.max(0, 1 - (toWater / 5000));
-
-    // Balanced Ratios
-    currentRatios.urban = Math.max(0.1, zoomDensity - (waterSense * 0.5));
-    currentRatios.blue = Math.max(0.1, waterSense + (1.0 - zoomDensity) * 0.5);
-
-    updateAudioEngine();
-}
+        updateAudioEngine();
+    }
 
     function updateAudioEngine() {
-    if (!isAudioActive) return;
+        if (!isAudioActive) return;
 
-    const urban = currentRatios.urban || 0.1; // Fallback to 0.1
-    const water = currentRatios.blue || 0.1;
+        const urban = currentRatios.urban;
+        const blue = currentRatios.blue;
 
-    // A. REGAIN THE NODES (BPM)
-    const targetBPM = 30 + (urban * 110);
-    Tone.Transport.bpm.rampTo(targetBPM, 0.4);
+        // A. TEMPORAL DRAG (BPM)
+        // City = 140 BPM | Water = 20 BPM
+        const targetBPM = 20 + (urban * 120);
+        Tone.Transport.bpm.rampTo(targetBPM, 0.5);
 
-    // B. FREQUENCY SEPARATION
-    // In the city, we push the industrial noise higher (Thin/Crunchy)
-    // In nature, it stays low (Rumble)
-    const noiseFilterFreq = 100 + (urban * 800);
-    noiseSynth.filter.frequency.rampTo(noiseFilterFreq, 0.5);
+        // B. SYMPHONIC PROLONGING (Release)
+        // Stretch notes up to 18 seconds in the water
+        const stretch = 0.2 + (blue * 17.8);
+        chimePoly.set({ 
+            envelope: { release: stretch },
+            harmonicity: 1 + (urban * 2) 
+        });
 
-    // C. NODE VOLUME BOOST
-    // If urban is high, we make the chimes louder to compete with the roads
-    chimePoly.volume.rampTo(-20 + (urban * 15), 0.3);
+        // C. INDUSTRIAL NOISE VOLUME
+        // Ducks volume when in nature
+        const noiseVol = -55 + (urban * 40) - (blue * 15);
+        noiseSynth.volume.rampTo(Math.min(-18, noiseVol), 0.3);
 
-    // D. EXTENSION (Prolonging)
-    const releaseTime = 0.2 + (water * 15);
-    chimePoly.set({ envelope: { release: releaseTime } });
+        // D. REVERB CLOUD
+        masterReverb.wet.rampTo(0.05 + (blue * 0.8), 1);
+    }
 
-    // E. INDUSTRIAL MUTE IN WATER
-    // This ensures the noise stops when you are in the ocean/river
-    const noiseVol = -60 + (urban * 45) - (water * 30);
-    noiseSynth.volume.rampTo(Math.min(-18, noiseVol), 0.4);
-}
-
-    // 4. Tone.js Initialization
     startBtn.onclick = async () => {
         try {
             await Tone.start();
-            const limiter = new Tone.Limiter(-1).toDestination();
-            masterReverb = new Tone.Reverb({ decay: 15, wet: 0.3 }).connect(limiter);
-
-            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(100, "bandpass").connect(masterReverb));
-            noiseSynth.start();
-
-            waterFlow = new Tone.Noise("pink").connect(new Tone.AutoFilter("1n").connect(masterReverb).start());
-            waterFlow.start();
-
-            natureBase = new Tone.MonoSynth({
-                oscillator: { type: "fatsawtooth", count: 3 },
-                envelope: { attack: 3, release: 12 }
-            }).connect(new Tone.Filter(60, "lowpass").connect(masterReverb));
-
+            
+            // Reverb for the 'Ocean' effect
+            masterReverb = new Tone.Reverb({ decay: 15, wet: 0.1 }).toDestination();
+            
+            // 1. THE NODES (Connected to reverb)
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                harmonicity: 2,
-                envelope: { attack: 0.05, release: 1 }
+                oscillator: { type: "sine" },
+                envelope: { attack: 0.02, release: 1 }
             }).connect(masterReverb);
 
+            // 2. INDUSTRIAL HUM
+            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(200, "lowpass").toDestination());
+            noiseSynth.start();
+
+            // 3. THE HEARTBEAT LOOP
+            // This loop never dies. It triggers every 8th note.
             new Tone.Loop(time => {
-            // We add a '0.15' floor so you ALWAYS hear some nodes
-            const spawnProb = 0.15 + (currentRatios.urban * 0.8);
-    
-        if (Math.random() < spawnProb) {
-        // In the city, nodes are higher pitched; in nature, they drop an octave
-        const scale = currentRatios.urban > 0.5 ? SCALES.high : SCALES.mid;
-        const note = scale[Math.floor(Math.random() * scale.length)];
-        
-        // Velocity (loudness) now fights the industrial noise
-        const velocity = 0.4 + (currentRatios.urban * 0.5);
-        chimePoly.triggerAttackRelease(note, "32n", time, velocity);
-        }
-        }, "16n").start(0);
+                const prob = 0.2 + (currentRatios.urban * 0.7);
+                if (Math.random() < prob) {
+                    const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
+                    chimePoly.triggerAttackRelease(note, "32n", time, 0.7);
+                }
+            }, "8n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
-            startBtn.innerText = "PROBE ACTIVE";
+            startBtn.innerText = "SYSTEM ONLINE";
             syncProbe();
-        } catch (e) { console.error(e); }
+        } catch (e) { console.error("Audio Load Error:", e); }
     };
 
-    // Listeners for real-time alignment
+    // Listeners
     slider.oninput = syncProbe;
     map.on('move zoom', syncProbe);
     marker.on('drag', syncProbe);
-
+    
     // Initial Sync
-    setTimeout(syncProbe, 100);
+    setTimeout(syncProbe, 500);
 }
 
 window.onload = init;
