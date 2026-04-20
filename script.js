@@ -1,19 +1,20 @@
 const BASE_NOTES = ["C5", "G4", "E5", "B4"];
 const VARIATION_NOTES = ["D5", "A4"]; 
+const DEEP_BASE_NOTES = ["C2", "G1", "F1", "A1"]; // Safe, melodic base shifts
 
-// COORDINATE MAPPING for GRANULAR DETECTION
 const ZONES = {
-    INDUSTRIAL: [[41.821, -71.418], [41.815, -71.414], [41.819, -71.403]], // I-95/I-195 Interchanges
-    GREEN: [[41.831, -71.409], [41.826, -71.396], [41.784, -71.415]],     // Prospect Terrace, East Side, Roger Williams
-    WATER: [[41.824, -71.404], [41.818, -71.401], [41.829, -71.403]]      // River, Canal, ponds
+    INDUSTRIAL: [[41.821, -71.418], [41.815, -71.414], [41.819, -71.403]],
+    GREEN: [[41.831, -71.409], [41.826, -71.396], [41.784, -71.415]],
+    WATER: [[41.824, -71.404], [41.818, -71.401], [41.829, -71.403]]
 };
 
-let map, marker, chimePoly, bassSynth, masterReverb, masterDelay, masterGain, lowPass;
+let map, marker, chimePoly, bassSynth, masterReverb, masterDelay, masterGain, lowPass, limiter;
 let isAudioActive = false;
 let currentRadius = 500;
+let currentBaseIndex = 0;
 
 function init() {
-    const startPos = [41.8245, -71.4128]; // Kennedy Plaza
+    const startPos = [41.8245, -71.4128]; 
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView(startPos, 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
     marker = L.marker(startPos, { draggable: true }).addTo(map);
@@ -30,44 +31,46 @@ function init() {
     function updateAudioParameters() {
         if (!isAudioActive) return;
         const pos = marker.getLatLng();
-        const sizeFactor = currentRadius / 2000;
+        
+        // Capping the size factor so it doesn't blow out the speakers
+        const sizeFactor = Math.min(currentRadius / 2000, 1.0);
 
-        // GRANULAR SENSING
         const isIndustrial = checkProximity(pos, ZONES.INDUSTRIAL, 700);
         const isGreen = checkProximity(pos, ZONES.GREEN, 800);
         const isWater = checkProximity(pos, ZONES.WATER, 400);
 
-        // 1. RHYTHM & SPEED
+        // 1. RHYTHM
         let targetBPM = 60;
-        if (isIndustrial) targetBPM = 110;
-        if (isWater) targetBPM = 45;
-        Tone.Transport.bpm.rampTo(targetBPM, 1);
+        if (isIndustrial) targetBPM = 105;
+        if (isWater) targetBPM = 48;
+        Tone.Transport.bpm.rampTo(targetBPM, 1.2);
 
-        // 2. LAYERED EFFECTS
-        // Industrial: Brighter, sharper resonance
-        lowPass.frequency.rampTo(isIndustrial ? 4000 : 1200, 1);
-        lowPass.Q.value = isIndustrial ? 6 : 1;
+        // 2. TEXTURE
+        lowPass.frequency.rampTo(isIndustrial ? 3500 : 1200, 1);
+        lowPass.Q.value = isIndustrial ? 4 : 1;
 
-        // Green: Longer, softer "bloom"
-        const attackVal = isGreen ? 0.6 : 0.02;
-        chimePoly.set({ envelope: { attack: attackVal, release: 2 + (sizeFactor * 4) } });
+        const attackVal = isGreen ? 0.5 : 0.05;
+        chimePoly.set({ envelope: { attack: attackVal, release: 2 + (sizeFactor * 3) } });
 
-        // 3. BASE (SUB-LEVEL)
-        // The base is always on, but gets "heavier" in green/water zones
-        const baseVol = (isGreen || isWater) ? -15 : -25;
-        bassSynth.volume.rampTo(baseVol + (sizeFactor * 10), 1);
+        // 3. CONTROLLED BASE VOLUME
+        // We use a lower multiplier (* 6 instead of * 10) to keep it safe
+        const baseVol = (isGreen || isWater) ? -20 : -30;
+        bassSynth.volume.rampTo(baseVol + (sizeFactor * 6), 1);
         
-        masterReverb.wet.rampTo(0.1 + (sizeFactor * 0.5) + (isWater ? 0.3 : 0), 1);
+        masterReverb.wet.rampTo(0.1 + (sizeFactor * 0.4), 1);
     }
 
     startBtn.onclick = async () => {
         try {
             await Tone.start();
-            masterGain = new Tone.Gain(0).toDestination();
-            masterGain.gain.rampTo(0.8, 2);
+            
+            // SAFETY FIRST: The Limiter prevents the "broken microphone" sound
+            limiter = new Tone.Limiter(-2).toDestination();
+            masterGain = new Tone.Gain(0).connect(limiter);
+            masterGain.gain.rampTo(0.7, 2);
 
-            masterReverb = new Tone.Reverb({ decay: 10, wet: 0.2 }).connect(masterGain);
-            masterDelay = new Tone.FeedbackDelay("8n.", 0.35).connect(masterReverb);
+            masterReverb = new Tone.Reverb({ decay: 12, wet: 0.2 }).connect(masterGain);
+            masterDelay = new Tone.FeedbackDelay("8n.", 0.3).connect(masterReverb);
             lowPass = new Tone.Filter(1500, "lowpass").connect(masterDelay);
 
             chimePoly = new Tone.PolySynth(Tone.Synth, {
@@ -75,19 +78,27 @@ function init() {
                 envelope: { attack: 0.02, decay: 0.2, sustain: 0.4, release: 2 }
             }).connect(lowPass);
 
-            // PERMANENT BASE LAYER (Triangle for warmth)
             bassSynth = new Tone.MonoSynth({
                 oscillator: { type: "triangle" },
-                envelope: { attack: 2, release: 4 }
+                envelope: { attack: 3, release: 5 }
             }).connect(masterGain);
-            bassSynth.triggerAttack("C2");
-            bassSynth.volume.value = -25;
+            bassSynth.triggerAttack(DEEP_BASE_NOTES[0]);
+            bassSynth.volume.value = -30;
 
+            // MELODY LOOP
             new Tone.Loop(time => {
-                let pool = Math.random() > 0.8 ? VARIATION_NOTES : BASE_NOTES;
+                let pool = Math.random() > 0.85 ? VARIATION_NOTES : BASE_NOTES;
                 let note = pool[Math.floor(Math.random() * pool.length)];
-                chimePoly.triggerAttackRelease(note, "16n", time, 0.4);
+                chimePoly.triggerAttackRelease(note, "16n", time, 0.35);
             }, "8n").start(0);
+
+            // GENTLE BASE VARIATION
+            new Tone.Loop(time => {
+                if (Math.random() > 0.7) {
+                    currentBaseIndex = (currentBaseIndex + 1) % DEEP_BASE_NOTES.length;
+                    bassSynth.frequency.rampTo(DEEP_BASE_NOTES[currentBaseIndex], 10);
+                }
+            }, "2n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
@@ -111,9 +122,7 @@ function init() {
     slider.oninput = sync;
     marker.on('drag', sync);
     map.on('zoom move', sync);
-    
-    // Clear initial blur
-    setTimeout(sync, 100);
+    setTimeout(sync, 150);
 }
 
 window.onload = init;
