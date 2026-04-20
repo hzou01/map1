@@ -1,102 +1,120 @@
- // A fixed, melodic sequence that is bright and pleasant
-const FIXED_MELODY = ["C5", "G4", "E5", "B4"]; 
+// High-end, Major-key palette that allows for infinite "freedom" in combinations
+const SCALES = {
+    BASE: ["C4", "E4", "G4", "B4"], // The "Designer" Chord
+    URBAN: ["D5", "A5"],            // High tension / Road resonance
+    NATURE: ["F4", "A4"]            // Soft extensions
+};
 
-let map, marker, chimePoly, bassSynth, masterReverb, masterDelay, masterGain;
+let map, marker, chimePoly, bassSynth, noiseResonator, masterReverb, masterDelay, masterGain;
 let isAudioActive = false;
 let currentRadius = 500;
 
 function init() {
-    const startPos = [41.8245, -71.4128]; // Central Providence
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView(startPos, 15);
+    const PVD_CENTER = [41.8245, -71.4128];
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView(PVD_CENTER, 15);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    marker = L.marker(startPos, { draggable: true }).addTo(map);
+    marker = L.marker(PVD_CENTER, { draggable: true }).addTo(map);
 
     const slider = document.getElementById('radius-slider');
     const radiusDisplay = document.getElementById('radius-value');
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
 
-    function updateAudioParameters() {
+    function updateSensors() {
         const pos = marker.getLatLng();
-        const pvdCenter = [41.8245, -71.4128];
-        const dist = pos.distanceTo(pvdCenter);
+        const distToCenter = pos.distanceTo(PVD_CENTER);
         
-        // 0.0 (Nature) to 1.0 (Urban)
-        const urbanFactor = Math.max(0, 1 - (dist / 3000));
+        // 1. INTENSITY CALCULATIONS
+        const urbanIntensity = Math.max(0, 1 - (distToCenter / 2500));
+        const isNearWater = (pos.lng > -71.402 && pos.lat < 41.815);
+        const oceanIntensity = isNearWater ? 0.9 : 0.0;
+        const natureIntensity = Math.max(0.2, 1 - urbanIntensity - oceanIntensity);
         const sizeFactor = currentRadius / 2000;
 
         if (!isAudioActive) return;
 
-        // SPEED: Urban is slightly more driving, nature is more "drifting"
-        Tone.Transport.bpm.rampTo(65 + (urbanFactor * 25), 0.5);
+        // 2. SPEED: Roads = Fast, Ocean = Slow
+        const targetBPM = 55 + (urbanIntensity * 55) - (oceanIntensity * 20);
+        Tone.Transport.bpm.rampTo(Math.max(45, targetBPM), 0.5);
 
-        // TEXTURE: High-pass filter for the "Industrial/Road" resonance
-        // As you hit the city, the sound becomes "thinner" and more resonant
-        chimePoly.set({
-            envelope: { release: 1 + (sizeFactor * 4) } 
-        });
-
-        // REVERB: Large probe = huge space
-        masterReverb.wet.rampTo(0.1 + (sizeFactor * 0.5), 1);
+        // 3. EFFECT RACK:
+        // Urban: High-pass noise + "Strong Resonance"
+        noiseResonator.volume.rampTo(-50 + (urbanIntensity * 15), 0.5);
         
-        // BASS: Deep grounding root that follows the probe size
+        // Nature: "Softer Tones" / High Reverb Shimmer
+        masterReverb.wet.rampTo(0.1 + (natureIntensity * 0.4) + (sizeFactor * 0.3), 1);
+        
+        // Ocean: Low-Pass "Murky" Filter
+        const cutoff = 4000 - (oceanIntensity * 3200);
+        chimePoly.set({ filter: { frequency: cutoff } });
+
+        // 4. SIZE DYNAMICS: Probe scale increases grounding bass
         bassSynth.volume.rampTo(-30 + (sizeFactor * 15), 0.5);
     }
 
     startBtn.onclick = async () => {
         try {
             await Tone.start();
-            
             masterGain = new Tone.Gain(0).toDestination();
-            masterGain.gain.rampTo(0.8, 1.5); // Soft start
+            masterGain.gain.rampTo(0.9, 2);
 
-            // THE EFFECTS CHAIN: Rhythmic "Instagram" bounce
-            masterReverb = new Tone.Reverb({ decay: 8, wet: 0.2 }).connect(masterGain);
-            masterDelay = new Tone.FeedbackDelay("8n.", 0.4).connect(masterReverb);
+            masterReverb = new Tone.Reverb({ decay: 10, wet: 0.2 }).connect(masterGain);
+            masterDelay = new Tone.FeedbackDelay("8n.", 0.35).connect(masterReverb);
 
-            // THE INSTRUMENT: Pure, soft sine wave (No weird FM distortion)
+            // MAIN INSTRUMENT
             chimePoly = new Tone.PolySynth(Tone.Synth, {
                 oscillator: { type: "sine" },
-                envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 2 }
+                envelope: { attack: 0.05, decay: 0.2, sustain: 0.3, release: 3 }
             }).connect(masterDelay);
 
-            // THE BASS: Grounding Root
+            // THE BASS: Pure Grounding Sine
             bassSynth = new Tone.MonoSynth({
                 oscillator: { type: "sine" },
-                envelope: { attack: 1, release: 3 }
+                envelope: { attack: 1, release: 4 }
             }).connect(masterGain);
             bassSynth.triggerAttack("C2");
-            bassSynth.volume.value = -30;
 
-            // THE MELODY: Precise and Repeating
-            let i = 0;
+            // INDUSTRIAL RESONANCE: High-frequency road hum
+            const roadFilter = new Tone.Filter(2500, "highpass").connect(masterGain);
+            noiseResonator = new Tone.Noise("white").connect(roadFilter);
+            noiseResonator.start();
+
+            // THE LOOP: Generative combination of nodes
             new Tone.Loop(time => {
-                let note = FIXED_MELODY[i % FIXED_MELODY.length];
-                // Occasionally skip a note to create "air"
-                if (Math.random() > 0.1) {
-                    chimePoly.triggerAttackRelease(note, "16n", time, 0.4);
+                // Base structure (Always plays)
+                const baseNote = SCALES.BASE[Math.floor(Math.random() * SCALES.BASE.length)];
+                chimePoly.triggerAttackRelease(baseNote, "8n", time, 0.4);
+
+                // Add freedom for combinations based on location
+                if (Math.random() < 0.6) {
+                    let extraNote;
+                    if (Math.random() < 0.5) {
+                        // Blend in Urban/High-Road tones
+                        extraNote = SCALES.URBAN[Math.floor(Math.random() * SCALES.URBAN.length)];
+                    } else {
+                        // Blend in Soft-Nature tones
+                        extraNote = SCALES.NATURE[Math.floor(Math.random() * SCALES.NATURE.length)];
+                    }
+                    chimePoly.triggerAttackRelease(extraNote, "4n", time + 0.1, 0.2);
                 }
-                i++;
             }, "8n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
-            updateAudioParameters();
-            startBtn.innerText = "SYSTEM ACTIVE";
+            updateSensors();
         } catch (e) { console.error(e); }
     };
 
     const sync = () => {
         currentRadius = parseInt(slider.value);
         if (radiusDisplay) radiusDisplay.innerText = currentRadius + "m";
-        
         const centerPoint = map.latLngToContainerPoint(marker.getLatLng());
         const zoom = map.getZoom();
         const metersPerPixel = 156543.03392 * Math.cos(marker.getLatLng().lat * Math.PI / 180) / Math.pow(2, zoom);
         const pixelRadius = currentRadius / metersPerPixel;
 
         frost.style.clipPath = `path('M 0 0 H ${window.innerWidth} V ${window.innerHeight} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0')`;
-        updateAudioParameters();
+        updateSensors();
     };
 
     slider.oninput = sync;
