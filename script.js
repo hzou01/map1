@@ -1,4 +1,4 @@
-// 1. THE MAP THEME (Logic Targets)
+// 1. COLORS & SCALES
 const MAP_THEME = {
     HIGHWAY_RED:   "#DC96A2", 
     ROAD_ORANGE:   "#F6D8A9", 
@@ -9,133 +9,121 @@ const MAP_THEME = {
     WATER_BLUE:    "#B2D2DE"
 };
 
-let map, marker, chimePoly, natureBase, waterPad, masterReverb, noiseSynth;
-let isAudioActive = false;
-
-// The "Brain" of the detection - updated by the probe content
-let currentRatios = { red: 0, orange: 0, yellow: 0, white: 0, grey: 0, green: 0, blue: 0 };
-
 const SCALES = {
-    high: ["C4", "Eb4", "G4", "Bb4", "C5"], 
-    mid: ["G2", "Bb2", "C3", "D3"],        
-    low: ["C1", "Eb1", "G1"]               
+    high: ["C4", "Eb4", "G4", "Bb4", "C5"],
+    mid: ["G2", "Bb2", "C3", "D3"],
+    low: ["C1", "Eb1", "G1"] // Very deep anchors
 };
+
+let map, marker, chimePoly, natureBase, waterPad, masterReverb, noiseSynth, waterFlow;
+let isAudioActive = false;
+let currentRatios = { red: 0, orange: 0, yellow: 0, white: 0, grey: 0, green: 0, blue: 0 };
 
 function init() {
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     const slider = document.getElementById('radius-slider');
-    const radiusVal = document.getElementById('radius-value'); // UI element to show number
+    const radiusVal = document.getElementById('radius-value');
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
     marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
-    // REAL-TIME PROBE SCAN
     function syncProbe() {
         const radiusMeters = parseInt(slider.value);
-        if(radiusVal) radiusVal.innerText = radiusMeters + "m"; // Update UI number
+        if(radiusVal) radiusVal.innerText = radiusMeters + "m";
 
         const center = marker.getLatLng();
-        
-        // --- TRUE DETECTION LOGIC ---
-        // In a real-world scenario, we fetch features within the radius
-        // Here we simulate the sensor reading the map's metadata
-        detectFeaturesInsideProbe(center, radiusMeters);
+        detectFeatures(center);
 
-        // Visual update
         const centerPoint = map.latLngToContainerPoint(center);
         const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
         const pixelRadius = radiusMeters / metersPerPixel;
 
-        const holeX = centerPoint.x + 100; 
-        const holeY = centerPoint.y + 100;
-        const fullPath = `M 0 0 H ${window.innerWidth + 200} V ${window.innerHeight + 200} H 0 Z M ${holeX} ${holeY} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
+        const fullPath = `M 0 0 H ${window.innerWidth + 200} V ${window.innerHeight + 200} H 0 Z M ${centerPoint.x + 100} ${centerPoint.y + 100} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
         frost.style.clipPath = `path('${fullPath}')`;
         
         updateAudioEngine();
     }
 
-    function detectFeaturesInsideProbe(latlng, radius) {
-        // This function simulates the "#ChromaKey" or "#Analyze" node.
-        // It calculates how much of the "Probe Area" is covered by specific features.
-        // As you move near the Providence River, 'blue' increases.
-        // As you move toward I-95, 'red' increases.
-        
-        const distFromWater = latlng.distanceTo([41.82, -71.40]); // Near the river
-        currentRatios.blue = Math.max(0, 1 - (distFromWater / 1000));
-        
-        const distFromPark = latlng.distanceTo([41.828, -71.41]); // Near Prospect Terrace
-        currentRatios.green = Math.max(0, 1 - (distFromPark / 800));
+    function detectFeatures(latlng) {
+        // Precise location targets for Providence
+        const toWater = latlng.distanceTo([41.82, -71.40]);
+        currentRatios.blue = Math.max(0, 1 - (toWater / 1200));
 
-        const distFromHighway = latlng.distanceTo([41.818, -71.415]); // Near I-95
-        currentRatios.red = Math.max(0, 1 - (distFromHighway / 500));
+        const toPark = latlng.distanceTo([41.828, -71.41]);
+        currentRatios.green = Math.max(0, 1 - (toPark / 900));
 
-        // Fill the rest with Urban (Grey/Yellow)
-        currentRatios.grey = 0.5 - (currentRatios.green * 0.5);
-        currentRatios.yellow = 0.5 - (currentRatios.blue * 0.5);
+        const toRoad = latlng.distanceTo([41.818, -71.415]);
+        currentRatios.red = Math.max(0, 1 - (toRoad / 600));
+
+        currentRatios.grey = 0.4 - (currentRatios.green * 0.3);
+        currentRatios.white = 0.5 - (currentRatios.blue * 0.4);
     }
 
     function updateAudioEngine() {
         if (!isAudioActive) return;
 
-        // TEMPORAL DRAG: Water slows the world down
-        const tempo = 110 - (currentRatios.blue * 70); 
-        Tone.Transport.bpm.rampTo(tempo, 0.5);
+        // WATER: Flowing & Slow Rhythm
+        const tempo = 110 - (currentRatios.blue * 75);
+        Tone.Transport.bpm.rampTo(tempo, 1);
+        waterFlow.volume.rampTo(-45 + (currentRatios.blue * 25), 1.5);
+        masterReverb.wet.rampTo(0.1 + (currentRatios.blue * 0.7), 1.5);
 
-        // INDUSTRIAL RESONANCE: Roads add noise
+        // ROADS: Industrial Resonance
         const roadPresence = currentRatios.red + currentRatios.orange;
         noiseSynth.volume.rampTo(-45 + (roadPresence * 30), 0.5);
+
+        // NATURE: Deep Heavy Bass
+        natureBase.volume.rampTo(-28 + (currentRatios.green * 25), 1.2);
         
-        // SOFT TONAL BASE: Parks make it mushy and deep
-        natureBase.volume.rampTo(-35 + (currentRatios.green * 28), 1);
-        
-        // NODE POP-OUT: More houses = more nodes
-        const urbanDensity = currentRatios.grey + currentRatios.yellow + currentRatios.white;
-        chimePoly.volume.rampTo(-22 + (urbanDensity * 18), 0.2);
+        // CITIES: Fast nodes
+        const urbanDensity = currentRatios.grey + currentRatios.white;
+        chimePoly.volume.rampTo(-24 + (urbanDensity * 18), 0.3);
     }
 
     startBtn.onclick = async () => {
         try {
             await Tone.start();
             const limiter = new Tone.Limiter(-2).toDestination();
-            masterReverb = new Tone.Reverb({ decay: 10, wet: 0.2 }).connect(limiter);
+            masterReverb = new Tone.Reverb({ decay: 12, wet: 0.2 }).connect(limiter);
 
-            // 1. Industrial Noise
-            noiseSynth = new Tone.Noise("pink").connect(new Tone.Filter(400, "bandpass").connect(masterReverb));
+            // 1. INDUSTRIAL NOISE (Highway Resonance)
+            const crush = new Tone.BitCrusher(4).connect(masterReverb);
+            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(120, "bandpass").connect(crush));
             noiseSynth.volume.value = -50;
             noiseSynth.start();
 
-            // 2. Soft Nature Drone
-            natureBase = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "fatsine4" },
-                envelope: { attack: 3, release: 12 }
-            }).connect(new Tone.Filter(70, "lowpass").connect(masterReverb));
+            // 2. WATER FLOW (The "Soothe" Base)
+            // Lapping water effect using low-pass noise
+            const waterFilter = new Tone.AutoFilter("2n").connect(masterReverb).start();
+            waterFlow = new Tone.Noise("pink").connect(waterFilter);
+            waterFlow.volume.value = -60;
+            waterFlow.start();
 
-            // 3. Urban Node Chimes
+            // 3. HEAVY BASS (Mountain/Park Anchor)
+            natureBase = new Tone.MonoSynth({
+                oscillator: { type: "fatsawtooth", count: 3, spread: 30 },
+                envelope: { attack: 2, decay: 4, sustain: 0.8, release: 12 }
+            }).connect(new Tone.Filter(60, "lowpass").connect(masterReverb));
+
+            // 4. URBAN NODES
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                harmonicity: 2,
-                envelope: { attack: 0.02, decay: 0.1, release: 1 }
-            }).connect(masterReverb);
-
-            // 4. Water Pad
-            waterPad = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "triangle" },
-                envelope: { attack: 4, release: 10 }
+                harmonicity: 3,
+                envelope: { attack: 0.01, decay: 0.2, release: 1 }
             }).connect(masterReverb);
 
             new Tone.Loop(time => {
-                const urbanDensity = currentRatios.grey + currentRatios.yellow + currentRatios.white;
-                // High frequency of small nodes
-                if (Math.random() < (0.1 + urbanDensity * 0.7)) {
+                const urbanDensity = currentRatios.grey + currentRatios.white;
+                if (Math.random() < (0.1 + urbanDensity * 0.75)) {
                     const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
                     chimePoly.triggerAttackRelease(note, "32n", time);
                 }
 
                 if (Tone.Transport.getTicksAtTime(time) % Tone.Ticks("1n").toNumber() === 0) {
-                    // Trigger the Long, Deep Base
+                    // Deep heavy anchor pulse
                     const bNote = SCALES.low[Math.floor(Math.random() * SCALES.low.length)];
-                    natureBase.triggerAttackRelease(bNote, "1n", time);
+                    natureBase.triggerAttackRelease(bNote, "1.5n", time);
                 }
             }, "16n").start(0);
 
@@ -146,7 +134,7 @@ function init() {
         } catch (e) { console.error(e); }
     };
 
-    slider.oninput = syncProbe; // Updates real-time as you drag the slider
+    slider.oninput = syncProbe;
     map.on('move zoom', syncProbe);
     marker.on('drag', syncProbe);
 }
