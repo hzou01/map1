@@ -72,24 +72,16 @@ function init() {
    function detectFeatures(latlng) {
     const zoom = map.getZoom();
     
-    // 1. ZOOM-BASED DENSITY
-    // We treat zoom level as the "Complexity" of the map.
-    // Boston at Zoom 14 (your screenshot) = Medium-High Energy.
-    const zoomFactor = Math.min(1.0, Math.max(0, (zoom - 11) / 7));
-
-    // 2. THE INFRASTRUCTURE SENSOR
-    // We assume if you aren't in the deep ocean, you are in a "Built" environment.
-    // We sense how close we are to the 'Urban Core' (using Boston/Providence/NYC as anchors)
-    const isWater = latlng.lat < 42.34 && latlng.lng > -71.03; // Example: Boston Harbor check
+    // Normalize zoom: 12 is 'Natural', 18 is 'Heavy Urban'
+    let zoomDensity = Math.min(1.0, Math.max(0, (zoom - 11) / 7));
     
-    if (zoom < 11 || isWater) {
-        currentRatios.blue = 0.9;
-        currentRatios.urban = 0.1;
-    } else {
-        // This is a "Built" environment (Red + Orange + Yellow + Grey)
-        currentRatios.urban = zoomFactor * 0.9;
-        currentRatios.blue = 1.0 - currentRatios.urban;
-    }
+    // Check for water specifically in the coordinates
+    const toWater = latlng.distanceTo([42.35, -71.05]); // Generic 'Water' anchor
+    const waterSense = Math.max(0, 1 - (toWater / 5000));
+
+    // Balanced Ratios
+    currentRatios.urban = Math.max(0.1, zoomDensity - (waterSense * 0.5));
+    currentRatios.blue = Math.max(0.1, waterSense + (1.0 - zoomDensity) * 0.5);
 
     updateAudioEngine();
 }
@@ -97,30 +89,31 @@ function init() {
     function updateAudioEngine() {
     if (!isAudioActive) return;
 
-    // A. SNAP-BACK SPEED (BPM)
-    // Now scales with the total 'Built' environment.
-    // In Boston (high urban), BPM hits 145. In the Harbor, it drops to 25.
-    const targetBPM = 25 + (currentRatios.urban * 120);
-    Tone.Transport.bpm.rampTo(targetBPM, 0.3); // Very fast 'snap' for responsive feel
+    const urban = currentRatios.urban || 0.1; // Fallback to 0.1
+    const water = currentRatios.blue || 0.1;
 
-    // B. NODE EXTENSION (Ocean Release)
-    // City = 0.15s (Machine-like) | Water = 18s (Ghostly)
-    const nodeRelease = 0.15 + (currentRatios.blue * 17.85);
-    chimePoly.set({ 
-        envelope: { 
-            attack: 0.005 + (currentRatios.blue * 1.5),
-            release: nodeRelease 
-        } 
-    });
+    // A. REGAIN THE NODES (BPM)
+    const targetBPM = 30 + (urban * 110);
+    Tone.Transport.bpm.rampTo(targetBPM, 0.4);
 
-    // C. ROAD RESONANCE (The Industrial Hum)
-    // Increases the distortion and volume when in the Urban zone
-    const industrialGain = -55 + (currentRatios.urban * 40);
-    noiseSynth.volume.rampTo(Math.min(-15, industrialGain), 0.2);
-    
-    // D. REVERB MUSH
-    // Dries out in the city for clarity; gets cloudy in the water
-    masterReverb.wet.rampTo(0.05 + (currentRatios.blue * 0.8), 0.5);
+    // B. FREQUENCY SEPARATION
+    // In the city, we push the industrial noise higher (Thin/Crunchy)
+    // In nature, it stays low (Rumble)
+    const noiseFilterFreq = 100 + (urban * 800);
+    noiseSynth.filter.frequency.rampTo(noiseFilterFreq, 0.5);
+
+    // C. NODE VOLUME BOOST
+    // If urban is high, we make the chimes louder to compete with the roads
+    chimePoly.volume.rampTo(-20 + (urban * 15), 0.3);
+
+    // D. EXTENSION (Prolonging)
+    const releaseTime = 0.2 + (water * 15);
+    chimePoly.set({ envelope: { release: releaseTime } });
+
+    // E. INDUSTRIAL MUTE IN WATER
+    // This ensures the noise stops when you are in the ocean/river
+    const noiseVol = -60 + (urban * 45) - (water * 30);
+    noiseSynth.volume.rampTo(Math.min(-18, noiseVol), 0.4);
 }
 
     // 4. Tone.js Initialization
@@ -147,14 +140,19 @@ function init() {
             }).connect(masterReverb);
 
             new Tone.Loop(time => {
-            // Probability is almost 100% in dense urban areas
-            const spawnProb = 0.1 + (currentRatios.urban * 0.85);
+            // We add a '0.15' floor so you ALWAYS hear some nodes
+            const spawnProb = 0.15 + (currentRatios.urban * 0.8);
     
-            if (Math.random() < spawnProb) {
-            const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
-            chimePoly.triggerAttackRelease(note, "64n", time);
-            }
-            }, "16n").start(0);
+        if (Math.random() < spawnProb) {
+        // In the city, nodes are higher pitched; in nature, they drop an octave
+        const scale = currentRatios.urban > 0.5 ? SCALES.high : SCALES.mid;
+        const note = scale[Math.floor(Math.random() * scale.length)];
+        
+        // Velocity (loudness) now fights the industrial noise
+        const velocity = 0.4 + (currentRatios.urban * 0.5);
+        chimePoly.triggerAttackRelease(note, "32n", time, velocity);
+        }
+        }, "16n").start(0);
 
             Tone.Transport.start();
             isAudioActive = true;
