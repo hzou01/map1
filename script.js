@@ -36,36 +36,36 @@ function init() {
     marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
 
     // 2. The Absolute Alignment Function
-    function syncProbe() {
+   function syncProbe() {
     const slider = document.getElementById('radius-slider');
-    const radiusMeters = parseInt(slider.value);
-    
-    // Update the UI text
-    const display = document.getElementById('radius-value');
-    if (display) display.innerText = radiusMeters + "m";
+    const frost = document.getElementById('frost-layer');
+    const radiusVal = document.getElementById('radius-value');
 
-    // 1. Get the Marker's position relative to the browser window
+    const radiusMeters = parseInt(slider.value);
+    if (radiusVal) radiusVal.innerText = radiusMeters + "m";
+
+    // 1. GET THE PIN'S ACTUAL SCREEN POSITION
+    // This is the "secret sauce" to stop the misalignment.
     const centerLatLng = marker.getLatLng();
     const centerPoint = map.latLngToContainerPoint(centerLatLng);
 
-    // 2. Calculate the pixel radius accurately for the current zoom
-    const metersPerPixel = 156543.03392 * Math.cos(centerLatLng.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+    // 2. CONVERT METERS TO PIXELS
+    const zoom = map.getZoom();
+    const lat = centerLatLng.lat;
+    const metersPerPixel = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, zoom);
     const pixelRadius = radiusMeters / metersPerPixel;
 
-    // 3. Punch the Hole
-    // This creates a large rectangle (the frost) and then a circular hole (the probe)
-    // using the 'Even-Odd' winding rule logic in SVG paths.
+    // 3. PUNCH THE HOLE AT THE PIN'S COORDINATES
     const w = window.innerWidth;
     const h = window.innerHeight;
 
+    // We use the centerPoint.x and centerPoint.y we just calculated
     const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
 
-    const frost = document.getElementById('frost-layer');
     frost.style.clipPath = `path('${fullPath}')`;
 
-    // 4. Update the sound based on this exact location/radius
+    // 4. UPDATE SOUND
     detectFeatures(centerLatLng, radiusMeters);
-    updateAudioEngine();
 }
 
     // 3. Aggregate Sensing (Works at 10,000m)
