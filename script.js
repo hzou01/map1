@@ -37,29 +37,36 @@ function init() {
 
     // 2. The Absolute Alignment Function
     function syncProbe() {
-        const radiusMeters = parseInt(slider.value);
-        if(radiusVal) radiusVal.innerText = radiusMeters + "m";
+    const slider = document.getElementById('radius-slider');
+    const radiusMeters = parseInt(slider.value);
+    
+    // Update the UI text
+    const display = document.getElementById('radius-value');
+    if (display) display.innerText = radiusMeters + "m";
 
-        const center = marker.getLatLng();
-        detectFeatures(center, radiusMeters);
+    // 1. Get the Marker's position relative to the browser window
+    const centerLatLng = marker.getLatLng();
+    const centerPoint = map.latLngToContainerPoint(centerLatLng);
 
-        // Get pixel position relative to the CONTAINER, not the window
-        const mapSize = map.getSize();
-        const centerPoint = map.latLngToContainerPoint(center);
-        
-        const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
-        const pixelRadius = radiusMeters / metersPerPixel;
+    // 2. Calculate the pixel radius accurately for the current zoom
+    const metersPerPixel = 156543.03392 * Math.cos(centerLatLng.lat * Math.PI / 180) / Math.pow(2, map.getZoom());
+    const pixelRadius = radiusMeters / metersPerPixel;
 
-        // Path logic: Big rectangle covering the view - Circle hole
-        // We use viewport units to ensure it covers everything
-        const vW = window.innerWidth;
-        const vH = window.innerHeight;
-        
-        const fullPath = `M 0 0 H ${vW} V ${vH} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
-        
-        frost.style.clipPath = `path('${fullPath}')`;
-        updateAudioEngine();
-    }
+    // 3. Punch the Hole
+    // This creates a large rectangle (the frost) and then a circular hole (the probe)
+    // using the 'Even-Odd' winding rule logic in SVG paths.
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
+
+    const frost = document.getElementById('frost-layer');
+    frost.style.clipPath = `path('${fullPath}')`;
+
+    // 4. Update the sound based on this exact location/radius
+    detectFeatures(centerLatLng, radiusMeters);
+    updateAudioEngine();
+}
 
     // 3. Aggregate Sensing (Works at 10,000m)
     function detectFeatures(latlng, radius) {
