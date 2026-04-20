@@ -7,25 +7,26 @@ const SCALES = {
 let map, marker, chimePoly, noiseSynth, waterFlow, masterReverb, masterGain;
 let isAudioActive = false;
 let currentRatios = { urban: 0.5, blue: 0.1, green: 0.1 };
-let lastCheck = 0; // For Throttling
+let lastCheck = 0;
 
 function init() {
-    const PVD_COORDS = [41.8268, -71.4025];
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView(PVD_COORDS, 15);
+    // 1. START AT CENTRAL PROVIDENCE (Kennedy Plaza / Burnside Park)
+    const CENTRAL_PVD = [41.8245, -71.4128];
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView(CENTRAL_PVD, 16);
     
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-    marker = L.marker(PVD_COORDS, { draggable: true }).addTo(map);
+    marker = L.marker(CENTRAL_PVD, { draggable: true }).addTo(map);
 
     const slider = document.getElementById('radius-slider');
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
 
-    // SENSOR: Using Throttling (once every 800ms) to stay within API limits
+    // 2. THE SENSOR WITH VISUAL FEEDBACK
     async function sampleEnvironment() {
         if (!isAudioActive) return;
         
         const now = Date.now();
-        if (now - lastCheck < 800) return; // Skip if called too soon
+        if (now - lastCheck < 900) return; // Wait 900ms between pings to avoid blocks
         lastCheck = now;
 
         const latlng = marker.getLatLng();
@@ -33,26 +34,30 @@ function init() {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18`);
             const data = await res.json();
             
-            const category = data.class || ""; 
-            const type = data.type || "";      
+            const cat = data.class || ""; 
+            const type = data.type || ""; 
             
-            console.log(`Probe Sense: ${category} | ${type}`);
+            // Log to console so you can see it working
+            console.log(`Probe Sense: ${cat} | ${type}`);
 
-            // IMPROVED LOGIC: Catching specific OSM tags for water and parks
-            const isWater = category === "water" || type.includes("river") || type.includes("canal") || category === "coastline";
-            const isNature = category === "natural" || category === "park" || type === "wood" || type === "forest" || type === "garden";
+            // Robust Land-Use Mapping
+            const isWater = cat === "water" || type.includes("river") || type.includes("canal") || cat === "coastline";
+            const isNature = cat === "natural" || cat === "park" || type === "wood" || type === "forest" || type === "garden" || type === "grass";
 
             if (isWater) {
-                currentRatios = { urban: 0.0, blue: 1.0, green: 0.0 };
+                currentRatios = { urban: 0.05, blue: 0.95, green: 0.0 };
+                marker.getElement().style.filter = "hue-rotate(180deg)"; // Turn Blue
             } else if (isNature) {
-                currentRatios = { urban: 0.1, blue: 0.0, green: 0.9 };
+                currentRatios = { urban: 0.1, blue: 0.05, green: 0.85 };
+                marker.getElement().style.filter = "hue-rotate(90deg)"; // Turn Green
             } else {
-                currentRatios = { urban: 1.0, blue: 0.0, green: 0.0 };
+                currentRatios = { urban: 0.9, blue: 0.05, green: 0.05 };
+                marker.getElement().style.filter = "none"; // Default
             }
             
             updateAudioEngine();
         } catch (e) {
-            console.warn("Sensor Overload - holding state.");
+            console.warn("Sensor Blocked by API limits. Move slower!");
         }
     }
 
@@ -69,7 +74,7 @@ function init() {
         const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
         frost.style.clipPath = `path('${fullPath}')`;
 
-        sampleEnvironment(); // Trigger the throttled check
+        sampleEnvironment();
     }
 
     function updateAudioEngine() {
@@ -82,10 +87,11 @@ function init() {
             harmonicity: green > 0.5 ? 3.5 : (blue > 0.5 ? 1.4 : 2.5) 
         });
 
+        // Ensure these sounds actually cut out when not detected
         waterFlow.volume.rampTo(blue > 0.5 ? -20 : -80, 0.8);
-        noiseSynth.volume.rampTo(urban > 0.5 ? -38 : -80, 0.8);
+        noiseSynth.volume.rampTo(urban > 0.5 ? -35 : -80, 0.8);
 
-        const rel = 0.5 + (blue * 10) + (green * 4);
+        const rel = 0.4 + (blue * 10) + (green * 4);
         chimePoly.set({ envelope: { release: rel } });
     }
 
@@ -93,7 +99,7 @@ function init() {
         try {
             await Tone.start();
             masterGain = new Tone.Gain(0).toDestination();
-            masterGain.gain.rampTo(1, 1.5); 
+            masterGain.gain.rampTo(1, 1.2); 
 
             masterReverb = new Tone.Reverb({ decay: 10, wet: 0.25 }).connect(masterGain);
 
@@ -110,7 +116,7 @@ function init() {
             waterFlow.start();
 
             new Tone.Loop(time => {
-                if (Math.random() < 0.85) {
+                if (Math.random() < 0.8) {
                     let scale = SCALES.high;
                     if (currentRatios.blue > 0.6) scale = SCALES.low;
                     else if (currentRatios.green > 0.5) scale = SCALES.mid;
@@ -123,14 +129,12 @@ function init() {
             Tone.Transport.start();
             isAudioActive = true;
             sampleEnvironment();
-            startBtn.innerText = "PROBE ACTIVE";
         } catch (e) { console.error(e); }
     };
 
     slider.oninput = syncProbe;
     map.on('move zoom', syncProbe);
     marker.on('drag', syncProbe);
-    map.whenReady(() => setTimeout(syncProbe, 200));
 }
 
 window.onload = init;
