@@ -7,26 +7,26 @@ body, html {
 
 #map { 
     position: absolute; 
-    width: 100vw; height: 100vh; 
+    width: 100vw; 
+    height: 100vh; 
     z-index: 1; 
 }
 
 #frost-layer {
-    position: absolute;
-    top: -100px;
-    left: -100px;
-    width: calc(100vw + 200px); 
-    height: calc(100vh + 200px);
+    position: fixed; /* Fixed ensures it stays put regardless of map pans */
+    top: 0;
+    left: 0;
+    width: 100vw; 
+    height: 100vh;
     z-index: 5;
     pointer-events: none;
     
-    background: rgba(255, 255, 255, 0.4); /* The "Frost" */
+    background: rgba(255, 255, 255, 0.4); 
     backdrop-filter: blur(15px);
     -webkit-backdrop-filter: blur(15px);
 
-    /* We tell the mask to simply hide the blur where it is transparent */
-    -webkit-mask-image: radial-gradient(circle, transparent 100%, black 100%);
-    mask-image: radial-gradient(circle, transparent 100%, black 100%);
+    /* Transitions make the probe expansion feel like liquid/glass */
+    transition: clip-path 0.1s ease-out;
 }
 
 #ui {
