@@ -1,26 +1,23 @@
-// 1. THE EXACT COLOR PALETTE (Updated with your Hex codes)
+// 1. UPDATED THEME & SCALES
 const MAP_THEME = {
     HIGHWAY_RED:   "#DC96A2", 
     ROAD_ORANGE:   "#F6D8A9", 
     STREET_YELLOW: "#F8FAC4", 
+    STREET_WHITE:  "#FFFFFF",
     HOUSE_GREY:    "#D8D1C9", 
     PARK_GREEN:    "#B4D0A2", 
-    WATER_BLUE:    "#B2D2DE",
-    STREET_WHITE:  "#FFFFFF"  // Added White for streets
+    WATER_BLUE:    "#B2D2DE"
 };
 
-// 2. THE AUDIO STATE
-let map, marker, chimePoly, natureBase, waterPad, masterReverb;
-let isAudioActive = false;
-
-let currentRatios = { red: 0, orange: 0, yellow: 0.2, white: 0.1, grey: 0.2, green: 0.2, blue: 0.2 };
-
-// UPDATED SCALES: Lower octaves for a heavier feel
 const SCALES = {
-    high: ["C4", "Eb4", "G4", "Bb4", "C5"], // Lowered from C5/C6
-    mid: ["G2", "Bb2", "C3", "D3"],        // Stretched medium tones
-    low: ["C1", "Eb1", "G1"]               // Deep, heavy bass anchors
+    high: ["C5", "D5", "G5", "A5", "C6"],
+    mid: ["C3", "E3", "G3", "B3"],
+    low: ["C1", "G1", "F1"] // Deep, "mountainous" anchors
 };
+
+let map, marker, chimePoly, natureBase, waterPad, masterReverb, noiseSynth;
+let isAudioActive = false;
+let currentRatios = { red: 0.1, orange: 0.1, yellow: 0.2, white: 0.2, grey: 0.2, green: 0.1, blue: 0.1 };
 
 function init() {
     map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 15);
@@ -45,80 +42,81 @@ function init() {
         updateAudioEngine();
     }
 
-    // 3. THE SYMPHONIC MIXER
     function updateAudioEngine() {
         if (!isAudioActive) return;
 
-        // URBAN SPEED & DENSITY: Grey (Houses) and White/Yellow (Streets)
+        // WATER: "Slow down the rhythm"
+        // Base BPM is 120, drops toward 40 in deep blue areas
+        const tempo = 120 - (currentRatios.blue * 80);
+        Tone.Transport.bpm.rampTo(tempo, 1.5);
+        masterReverb.wet.rampTo(0.1 + (currentRatios.blue * 0.8), 1.5);
+
+        // ROADS/INDUSTRIAL: "Stronger resonance and noise"
+        const roadPresence = currentRatios.red + currentRatios.orange;
+        noiseSynth.volume.rampTo(-40 + (roadPresence * 30), 1);
+        
+        // PARKS: "Softer tones"
+        natureBase.volume.rampTo(-30 + (currentRatios.green * 25), 2);
+        
+        // DENSE REGIONS: "More nodes pop out"
         const urbanDensity = currentRatios.grey + currentRatios.yellow + currentRatios.white;
-        const transitSpeed = (currentRatios.red * 2.0) + (currentRatios.orange * 1.5);
-        
-        const tempo = 70 + (transitSpeed * 80) + (urbanDensity * 40); 
-        Tone.Transport.bpm.rampTo(tempo, 1);
-        
-        // CHIMES: Volume swells in residential/street areas
-        chimePoly.volume.rampTo(-18 + (urbanDensity * 12), 0.5);
-
-        // WATER: Reverb/Cloudiness
-        masterReverb.wet.rampTo(0.1 + (currentRatios.blue * 0.7), 1.5);
-        waterPad.volume.rampTo(-30 + (currentRatios.blue * 20), 1.5);
-
-        // THE BASS: Explicitly loud and heavy when Green is detected
-        natureBase.volume.rampTo(-25 + (currentRatios.green * 22), 1.2);
+        chimePoly.volume.rampTo(-20 + (urbanDensity * 15), 0.5);
     }
 
-    // 4. AUDIO INITIALIZATION
     startBtn.onclick = async () => {
         try {
             await Tone.start();
 
-            // Limiter to keep the bass heavy without clipping
-            const limiter = new Tone.Limiter(-2).toDestination();
+            // FX CHAIN
+            const limiter = new Tone.Limiter(-1).toDestination();
             masterReverb = new Tone.Reverb({ decay: 10, wet: 0.2 }).connect(limiter);
 
-            // HIGH: Mellow FM Chimes (Urban Pop-out)
-            chimePoly = new Tone.PolySynth(Tone.FMSynth, {
-                harmonicity: 1.5, // Less "weird" more "natural"
-                envelope: { attack: 0.1, decay: 0.3, sustain: 0.1, release: 1.2 }
-            }).connect(masterReverb);
+            // 1. INDUSTRIAL NOISE (Roads)
+            // A band-passed noise to simulate traffic/wind
+            const noiseFilter = new Tone.AutoFilter("4n").connect(masterReverb).start();
+            noiseSynth = new Tone.Noise("pink").connect(noiseFilter);
+            noiseSynth.volume.value = -50;
+            noiseSynth.start();
 
-            // MID: Stretched Pad (Water/Medium)
-            waterPad = new Tone.PolySynth(Tone.Synth, {
-                oscillator: { type: "triangle" },
-                envelope: { attack: 3, sustain: 0.4, release: 8 }
-            }).connect(masterReverb);
-
-            // LOW: Heavy, Deep, Mushy Base (Nature)
-            // Using a FatOscillator for a "thicker" sound
-            const lowFilter = new Tone.Filter(70, "lowpass").connect(masterReverb);
-            natureBase = new Tone.MonoSynth({
-                oscillator: { type: "fatsine", count: 3, spread: 20 },
-                envelope: { attack: 1.5, decay: 2, sustain: 0.8, release: 10 }
+            // 2. SOFT DRONE (Parks/Mountains)
+            const lowFilter = new Tone.Filter(60, "lowpass").connect(masterReverb);
+            natureBase = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "sine" },
+                envelope: { attack: 4, release: 12 }
             }).connect(lowFilter);
 
-            // GENERATIVE LOOP
+            // 3. URBAN NODES (Houses/Streets)
+            chimePoly = new Tone.PolySynth(Tone.FMSynth, {
+                harmonicity: 3,
+                modulationIndex: 10,
+                envelope: { attack: 0.01, decay: 0.2, sustain: 0.05, release: 0.8 }
+            }).connect(masterReverb);
+
+            // 4. WATER TEXTURE (Mid-layer)
+            waterPad = new Tone.PolySynth(Tone.Synth, {
+                oscillator: { type: "triangle" },
+                envelope: { attack: 5, release: 10 }
+            }).connect(masterReverb);
+
+            // GENERATIVE SCORE
             new Tone.Loop(time => {
-                // URBAN POP-OUT: Houses and Streets trigger nodes more often
-                const popProb = 0.1 + (currentRatios.grey * 0.5) + (currentRatios.yellow * 0.4);
-                if (Math.random() < popProb) {
+                const urbanDensity = currentRatios.grey + currentRatios.yellow + currentRatios.white;
+                
+                // Urban "Pop-outs"
+                if (Math.random() < (0.05 + urbanDensity * 0.8)) {
                     const note = SCALES.high[Math.floor(Math.random() * SCALES.high.length)];
-                    chimePoly.triggerAttackRelease(note, "16n", time);
+                    chimePoly.triggerAttackRelease(note, "32n", time);
                 }
 
-                // FOUNDATION: Bass and Mid Pulse
-                if (Tone.Transport.getTicksAtTime(time) % Tone.Ticks("2n").toNumber() === 0) {
-                    // LONG DEEP BASS
-                    if (Math.random() < (currentRatios.green + 0.4)) {
-                        const bNote = SCALES.low[Math.floor(Math.random() * SCALES.low.length)];
-                        natureBase.triggerAttackRelease(bNote, "1n", time);
-                    }
-                    // MEDIUM STRETCH
-                    if (Math.random() < (currentRatios.blue + 0.4)) {
-                        const mNote = SCALES.mid[Math.floor(Math.random() * SCALES.mid.length)];
-                        waterPad.triggerAttackRelease(mNote, "1n", time);
-                    }
+                // Sub-Base Pulse (Steady)
+                if (Tone.Transport.getTicksAtTime(time) % Tone.Ticks("1n").toNumber() === 0) {
+                    const bNote = SCALES.low[Math.floor(Math.random() * SCALES.low.length)];
+                    natureBase.triggerAttackRelease(bNote, "1n", time);
+                    
+                    const mNote = SCALES.mid[Math.floor(Math.random() * SCALES.mid.length)];
+                    waterPad.triggerAttackRelease(mNote, "2n", time);
                 }
-            }, "8n").start(0);
+            }, "16n").start(0);
 
             Tone.Transport.start();
             startBtn.innerText = "PROBE ACTIVE";
@@ -131,6 +129,7 @@ function init() {
     map.on('zoom move', syncProbe);
     marker.on('drag', syncProbe);
     marker.on('dragend', () => {
+        // Simulated Chromakey Scan for Providence
         currentRatios.red = Math.random() * 0.3;
         currentRatios.orange = Math.random() * 0.4;
         currentRatios.yellow = Math.random() * 0.5;
