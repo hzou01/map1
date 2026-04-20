@@ -1,13 +1,3 @@
-const MAP_THEME = {
-    HIGHWAY_RED:   "#DC96A2", 
-    ROAD_ORANGE:   "#F6D8A9", 
-    STREET_YELLOW: "#F8FAC4", 
-    STREET_WHITE:  "#FFFFFF",
-    HOUSE_GREY:    "#D8D1C9", 
-    PARK_GREEN:    "#B4D0A2", 
-    WATER_BLUE:    "#B2D2DE"
-};
-
 const SCALES = {
     high: ["C4", "Eb4", "G4", "Bb4", "C5"], 
     mid: ["G3", "A3", "C4", "D4", "E4"],   
@@ -17,57 +7,43 @@ const SCALES = {
 let map, marker, chimePoly, noiseSynth, waterFlow, masterReverb, masterGain;
 let isAudioActive = false;
 let currentRatios = { urban: 0.5, blue: 0.1, green: 0.1 };
+let debounceTimer; // The 'Lid' for our eye
 
 function init() {
-    // 1. Setup Map with 'WillReadFrequently' to allow pixel sampling
-    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([41.8245, -71.4128], 14);
-    
-    // CRITICAL: We use a specific tile provider that allows cross-origin sampling
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        crossOrigin: true 
-    }).addTo(map);
+    map = L.map('map', { zoomControl: false, attributionControl: false }).setView([40.7128, -74.0060], 14); // Start NYC
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    marker = L.marker([40.7128, -74.0060], { draggable: true }).addTo(map);
 
-    marker = L.marker([41.8245, -71.4128], { draggable: true }).addTo(map);
     const slider = document.getElementById('radius-slider');
     const frost = document.getElementById('frost-layer');
     const startBtn = document.getElementById('start-btn');
 
-    // 2. THE OPTICAL SENSOR (Universal)
-    async function sampleMapColor() {
+    // 1. THE REVERSE GEOCODE SENSOR (UNIVERSAL)
+    async function sampleEnvironment() {
         if (!isAudioActive) return;
-
-        // Create a temporary canvas to capture the map pixel
-        const canvas = document.createElement('canvas');
-        canvas.width = 1; canvas.height = 1;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-        // Use leaflet's internal method to find the tile under the marker
         const latlng = marker.getLatLng();
-        const containerPoint = map.latLngToContainerPoint(latlng);
-        
-        // We use a simplified 'Data Class' check that works across all cities
-        // by looking at the Map Zoom and distance to the local viewport center
-        const zoom = map.getZoom();
-        const viewCenter = map.getCenter();
-        const dist = latlng.distanceTo(viewCenter);
 
-        // This logic simulates "seeing" the color by using map metadata
-        // It works everywhere (Boston, Providence, etc.)
-        const isWater = zoom < 13 || (latlng.lng > -71.04 && latlng.lat < 42.36) || (latlng.lat < 41.81);
-        const isUrban = zoom > 15 || dist < 1000;
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18`);
+            const data = await res.json();
+            
+            const category = data.class; // water, highway, natural, etc.
+            const type = data.type;      // river, residential, wood, etc.
+            
+            console.log(`Probe Sense: ${category} | ${type}`);
 
-        if (isWater) {
-            currentRatios = { urban: 0.05, blue: 0.9, green: 0.05 };
-            console.log("SURFACE DETECTED: WATER");
-        } else if (isUrban) {
-            currentRatios = { urban: 0.9, blue: 0.05, green: 0.05 };
-            console.log("SURFACE DETECTED: URBAN");
-        } else {
-            currentRatios = { urban: 0.2, blue: 0.1, green: 0.7 };
-            console.log("SURFACE DETECTED: VEGETATION");
+            if (category === "water" || type === "river" || category === "coastline") {
+                currentRatios = { urban: 0.0, blue: 1.0, green: 0.0 };
+            } else if (category === "natural" || category === "park" || type === "wood" || type === "forest") {
+                currentRatios = { urban: 0.1, blue: 0.0, green: 0.9 };
+            } else {
+                currentRatios = { urban: 1.0, blue: 0.0, green: 0.0 };
+            }
+            
+            updateAudioEngine();
+        } catch (e) {
+            console.warn("API throttled, maintaining current sound.");
         }
-        
-        updateAudioEngine();
     }
 
     function syncProbe() {
@@ -83,22 +59,29 @@ function init() {
         const fullPath = `M 0 0 H ${w} V ${h} H 0 Z M ${centerPoint.x} ${centerPoint.y} m -${pixelRadius}, 0 a ${pixelRadius},${pixelRadius} 0 1,0 ${pixelRadius * 2},0 a ${pixelRadius},${pixelRadius} 0 1,0 -${pixelRadius * 2},0`;
         frost.style.clipPath = `path('${fullPath}')`;
 
-        sampleMapColor();
+        // DEBOUNCE: Only ask the API if the marker stays still for 200ms
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(sampleEnvironment, 200);
     }
 
     function updateAudioEngine() {
         const { urban, blue, green } = currentRatios;
-        const targetBPM = 50 + (urban * 90) - (blue * 10);
-        Tone.Transport.bpm.rampTo(targetBPM, 0.2);
 
+        // Rhythm: Ocean is vibrant but slower
+        const targetBPM = 50 + (urban * 90) - (blue * 12);
+        Tone.Transport.bpm.rampTo(Math.max(45, targetBPM), 0.4);
+
+        // Tone: High harmonicity for Forest shimmer
         chimePoly.set({ 
-            modulationIndex: 12 * urban + 4 * blue + 3 * green,
-            harmonicity: green > 0.5 ? 3.5 : (blue > 0.5 ? 1.2 : 2.5) 
+            modulationIndex: 12 * urban + 4 * blue + 2 * green,
+            harmonicity: green > 0.5 ? 3.5 : (blue > 0.5 ? 1.5 : 2.5) 
         });
 
-        waterFlow.volume.rampTo(blue > 0.5 ? -20 : -80, 0.5);
-        noiseSynth.volume.rampTo(urban > 0.5 ? -35 : -80, 0.5);
+        // Volume Layers
+        waterFlow.volume.rampTo(blue > 0.5 ? -24 : -80, 0.8);
+        noiseSynth.volume.rampTo(urban > 0.5 ? -40 : -80, 0.6);
 
+        // Release: Long and vibrant for nature
         const rel = 0.5 + (blue * 12) + (green * 4);
         chimePoly.set({ envelope: { release: rel } });
     }
@@ -106,22 +89,20 @@ function init() {
     startBtn.onclick = async () => {
         try {
             await Tone.start();
-            
-            // 3. THE "SOFT START" (Prevents the explosion sound)
             masterGain = new Tone.Gain(0).toDestination();
-            masterGain.gain.rampTo(1, 1.5); // Fade in over 1.5 seconds
+            masterGain.gain.rampTo(1, 1.2); // FADE IN
 
-            masterReverb = new Tone.Reverb({ decay: 8, wet: 0.25 }).connect(masterGain);
+            masterReverb = new Tone.Reverb({ decay: 10, wet: 0.25 }).connect(masterGain);
 
             chimePoly = new Tone.PolySynth(Tone.FMSynth, {
                 oscillator: { type: "fatsine2" }, 
                 envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 2 }
             }).connect(masterReverb);
 
-            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(500, "highpass").connect(masterGain));
+            noiseSynth = new Tone.Noise("brown").connect(new Tone.Filter(450, "highpass").connect(masterGain));
             noiseSynth.start();
 
-            const waterFilter = new Tone.AutoFilter("0.2n", 1000, 2).connect(masterReverb).start();
+            const waterFilter = new Tone.AutoFilter("0.2n", 1200, 2).connect(masterReverb).start();
             waterFlow = new Tone.Noise("pink").connect(waterFilter);
             waterFlow.start();
 
@@ -138,8 +119,8 @@ function init() {
 
             Tone.Transport.start();
             isAudioActive = true;
+            sampleEnvironment(); 
             startBtn.innerText = "PROBE ACTIVE";
-            syncProbe();
         } catch (e) { console.error(e); }
     };
 
