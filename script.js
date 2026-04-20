@@ -62,25 +62,40 @@ function init() {
     }
 
     function updateAudioEngine() {
-        if (!isAudioActive) return;
+    if (!isAudioActive) return;
 
-        // WATER: Flowing & Slow Rhythm
-        const tempo = 110 - (currentRatios.blue * 75);
-        Tone.Transport.bpm.rampTo(tempo, 1);
-        waterFlow.volume.rampTo(-45 + (currentRatios.blue * 25), 1.5);
-        masterReverb.wet.rampTo(0.1 + (currentRatios.blue * 0.7), 1.5);
+    // 1. THE CLOCK (BPM DRAG)
+    // Base is 110 BPM. In deep water/forest, it drags down to 45 BPM.
+    const dragAmount = (currentRatios.blue * 0.6) + (currentRatios.green * 0.4);
+    const targetBPM = 110 - (dragAmount * 65); 
+    Tone.Transport.bpm.rampTo(targetBPM, 1.5); // 1.5s ramp makes the "slow down" audible
 
-        // ROADS: Industrial Resonance
-        const roadPresence = currentRatios.red + currentRatios.orange;
-        noiseSynth.volume.rampTo(-45 + (roadPresence * 30), 0.5);
+    // 2. THE STRETCH (PROLONGING)
+    // We physically change the release of the ADSR envelope based on Water/Forest.
+    const stretchValue = 1 + (currentRatios.blue * 12) + (currentRatios.green * 6);
+    
+    // Dynamically update the synth's release time
+    chimePoly.set({ envelope: { release: stretchValue * 0.5 } });
+    waterPad.set({ envelope: { release: stretchValue * 2 } });
+    natureBase.set({ envelope: { release: stretchValue * 3 } });
 
-        // NATURE: Deep Heavy Bass
-        natureBase.volume.rampTo(-28 + (currentRatios.green * 25), 1.2);
-        
-        // CITIES: Fast nodes
-        const urbanDensity = currentRatios.grey + currentRatios.white;
-        chimePoly.volume.rampTo(-24 + (urbanDensity * 18), 0.3);
-    }
+    // 3. INDUSTRIAL RESONANCE (Red/Orange)
+    const roadPresence = currentRatios.red + currentRatios.orange;
+    noiseSynth.volume.rampTo(-45 + (roadPresence * 30), 0.5);
+
+    // 4. WATER/FOREST MUSH (Filtering)
+    // Lowers the ceiling of the sound to make it feel "inside" nature
+    const filterCeiling = 2000 - (currentRatios.blue * 1500) - (currentRatios.green * 800);
+    masterReverb.connect(new Tone.Filter(filterCeiling, "lowpass").toDestination());
+
+    // 5. VOLUME BALANCING
+    waterFlow.volume.rampTo(-45 + (currentRatios.blue * 25), 1);
+    natureBase.volume.rampTo(-25 + (currentRatios.green * 22), 1);
+    
+    // Chime volume drops when in "Nature" to give space to the bass
+    const urbanDensity = currentRatios.grey + currentRatios.white + currentRatios.yellow;
+    chimePoly.volume.rampTo(-24 + (urbanDensity * 18), 0.5);
+}
 
     startBtn.onclick = async () => {
         try {
