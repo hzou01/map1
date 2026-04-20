@@ -48,43 +48,59 @@ function init() {
     }
 
     function detectFeatures(latlng) {
-        // PROVIDENCE MAPPING SENSORS
-        const toWater = latlng.distanceTo([41.8200, -71.4044]); // River
-        currentRatios.blue = Math.max(0, 1 - (toWater / 1000));
+    const slider = document.getElementById('radius-slider');
+    const currentRadius = parseInt(slider.value);
+    
+    // The "Sensing Range" now grows with your probe radius
+    // This prevents the sound from 'snapping' back to urban defaults at large scales
+    const sensingRange = Math.max(currentRadius * 1.5, 2000);
 
-        const toPark = latlng.distanceTo([41.8282, -71.4125]); // Prospect Terrace
-        currentRatios.green = Math.max(0, 1 - (toPark / 800));
+    // WATER: Deep Harbor/Bay
+    const toWater = latlng.distanceTo([41.81, -71.39]); 
+    currentRatios.blue = Math.max(0, 1 - (toWater / (sensingRange * 1.2)));
 
-        const toHighway = latlng.distanceTo([41.8185, -71.4188]); // I-95
-        currentRatios.red = Math.max(0, 1 - (toHighway / 600));
+    // FOREST/PARKS: Mountains & Soft Greenery
+    const toPark = latlng.distanceTo([41.83, -71.41]); 
+    currentRatios.green = Math.max(0, 1 - (toPark / sensingRange));
 
-        // Urban balance
-        currentRatios.grey = 0.3;
-        currentRatios.yellow = 0.3;
-    }
+    // INDUSTRIAL: Roads & Resonance
+    const toRoad = latlng.distanceTo([41.818, -71.415]);
+    currentRatios.red = Math.max(0, 1 - (toRoad / (sensingRange * 0.5)));
+
+    // URBAN: Pop-out Density
+    // Residential (Grey) and Streets (White) fill the gaps
+    const natureDominance = currentRatios.blue + currentRatios.green;
+    currentRatios.grey = Math.max(0.1, 0.5 - natureDominance);
+    currentRatios.white = Math.max(0.1, 0.5 - natureDominance);
+}
 
     function updateAudioEngine() {
-        if (!isAudioActive) return;
+    if (!isAudioActive) return;
 
-        // --- TEMPORAL DRAG (The Slowdown) ---
-        // Blue (Water) and Green (Forest) drastically cut the BPM
-        const drag = (currentRatios.blue * 0.7) + (currentRatios.green * 0.4);
-        const targetBPM = 120 - (drag * 90); // Ramps down from 120 to 30 BPM
-        Tone.Transport.bpm.rampTo(targetBPM, 0.5);
+    // --- TEMPORAL DRAG ---
+    // If Blue is 1.0, BPM drops to 25. If Blue is 0.0, BPM is 120.
+    const dragMultiplier = Math.pow(currentRatios.blue, 2); // Exponential curve for 'heavy' feel
+    const targetBPM = 120 - (dragMultiplier * 95) - (currentRatios.green * 40);
+    
+    // Constrain BPM to a minimum of 20 so it doesn't stop entirely
+    Tone.Transport.bpm.rampTo(Math.max(20, targetBPM), 1.5);
 
-        // --- PROLONGING (Envelope Stretch) ---
-        const stretch = 1 + (currentRatios.blue * 15) + (currentRatios.green * 8);
-        waterPad.set({ envelope: { release: stretch } });
-        natureBase.set({ envelope: { release: stretch * 1.5 } });
+    // --- SYMPHONIC PROLONGING ---
+    // Increases the "Tail" of the notes based on Water/Green
+    const tailLength = 1 + (currentRatios.blue * 18) + (currentRatios.green * 10);
+    
+    // Map features to specific sound effects
+    waterPad.set({ envelope: { release: tailLength } });
+    natureBase.set({ envelope: { release: tailLength * 1.2 } });
+    
+    // Industrial Noise (Red/Orange)
+    const industrialGain = -60 + (currentRatios.red * 45);
+    noiseSynth.volume.rampTo(industrialGain, 1);
 
-        // --- INDUSTRIAL NOISE ---
-        const roadPresence = currentRatios.red + currentRatios.orange;
-        noiseSynth.volume.rampTo(-45 + (roadPresence * 35), 0.5);
-
-        // --- WATER SOOTHE ---
-        waterFlow.volume.rampTo(-50 + (currentRatios.blue * 30), 1);
-        masterReverb.wet.rampTo(0.1 + (currentRatios.blue * 0.8), 1);
-    }
+    // Soothing Water Flow (Blue)
+    const waterGain = -55 + (currentRatios.blue * 30);
+    waterFlow.volume.rampTo(waterGain, 2);
+}
 
     startBtn.onclick = async () => {
         try {
