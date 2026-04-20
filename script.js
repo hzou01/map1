@@ -43,67 +43,72 @@ function init() {
 
     // NEW REVERSE GEOCODER LOGIC
     async function detectFeatures(latlng) {
-        // Ping OpenStreetMap for the specific "type" of ground under the pin
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}&zoom=18`;
 
-        try {
-            const response = await fetch(url);
-            const data = await response.json();
-            
-            // Log for debugging (Check your console to see what the pin 'sees')
-            console.log("Sensed Location Type:", data.type, data.class);
-
-            const category = data.class; // e.g., 'highway', 'building', 'water', 'natural'
-
-            if (category === "highway" || category === "building" || category === "railway") {
-                // URBAN STATE
-                currentRatios.red = 0.8;
-                currentRatios.grey = 0.9;
-                currentRatios.yellow = 0.8;
-                currentRatios.blue = 0.1;
-            } else if (category === "water" || category === "natural") {
-                // NATURE STATE
-                currentRatios.red = 0.1;
-                currentRatios.grey = 0.1;
-                currentRatios.yellow = 0.1;
-                currentRatios.blue = 0.9;
-            } else {
-                // NEUTRAL (Parks/Residential)
-                currentRatios.red = 0.3;
-                currentRatios.grey = 0.5;
-                currentRatios.blue = 0.4;
-            }
-        } catch (e) {
-            // Fallback if API fails: Use Zoom as a backup sensor
-            const zoom = map.getZoom();
-            currentRatios.blue = zoom < 13 ? 0.9 : 0.2;
-            currentRatios.grey = zoom < 13 ? 0.1 : 0.8;
-        }
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
         
-        updateAudioEngine();
+        // CHECK YOUR CONSOLE (Cmd+Option+J on Mac)
+        console.log("OSM Sensed:", data.class, data.type); 
+
+        const category = data.class;
+        // If it's a 'place', 'boundary', or 'man_made', treat it as Urban too
+        if (["highway", "building", "railway", "place", "man_made"].includes(category)) {
+            currentRatios.red = 0.8; currentRatios.grey = 0.9; currentRatios.blue = 0.1;
+        } else {
+            currentRatios.red = 0.1; currentRatios.grey = 0.1; currentRatios.blue = 0.9;
+        }
+    } catch (e) {
+        // If API fails, default to a 'Working' middle-ground so nodes stay on
+        currentRatios.red = 0.5; currentRatios.grey = 0.5; currentRatios.blue = 0.5;
     }
+    updateAudioEngine();
+}
 
-    function updateAudioEngine() {
-        if (!isAudioActive) return;
+    // --- 1. REVISED AUDIO ENGINE (QUITE NOISE, LOUD NODES) ---
+function updateAudioEngine() {
+    if (!isAudioActive) return;
 
-        const urbanDensity = (currentRatios.red + currentRatios.grey + currentRatios.yellow) / 3;
-        const waterPresence = currentRatios.blue;
+    // We use a "Safe Floor" of 0.3 so the city energy never fully dies
+    const urban = Math.max(0.3, (currentRatios.red + currentRatios.grey + currentRatios.yellow) / 3);
+    const water = currentRatios.blue;
 
-        // BPM Snap: Fast in City, Slow in Water
-        const targetBPM = 25 + (urbanDensity * 120); 
-        Tone.Transport.bpm.rampTo(Math.max(20, targetBPM), 0.8);
+    // BPM: 50 (Slow/Water) to 140 (Fast/City)
+    const targetBPM = 50 + (urban * 90); 
+    Tone.Transport.bpm.rampTo(targetBPM, 0.4);
 
-        // Node Stretching
-        const nodeRelease = 0.5 + (waterPresence * 15.5);
-        chimePoly.set({ envelope: { release: nodeRelease } });
+    // NODES: Boost volume so they are the "Lead" instrument
+    // release is short in city (0.2s), long in water (12s)
+    const nodeRelease = 0.2 + (water * 11.8);
+    chimePoly.set({ envelope: { release: nodeRelease } });
+    chimePoly.volume.rampTo(-10, 0.2); // Force nodes to be audible
 
-        // Noise Ducking
-        const noiseGain = -60 + (urbanDensity * 40) - (waterPresence * 20);
-        noiseSynth.volume.rampTo(Math.min(-15, noiseGain), 0.5);
+    // NOISE: We reduce this heavily so it doesn't drown the nodes
+    // It's now a background 'texture' rather than a wall of sound
+    const noiseVol = -65 + (urban * 30) - (water * 20);
+    noiseSynth.volume.rampTo(Math.min(-25, noiseVol), 0.5);
 
-        // Reverb Blur
-        masterReverb.wet.rampTo(0.1 + (waterPresence * 0.7), 1);
+    // WATER FLOW: Very subtle
+    waterFlow.volume.rampTo(-70 + (water * 30), 1.5);
+    masterReverb.wet.rampTo(0.05 + (water * 0.6), 1);
+}
+
+// --- 2. REVISED NODE LOOP (GUARANTEED TRIGGER) ---
+// Find this inside your startBtn.onclick function
+new Tone.Loop(time => {
+    // Probability now has a 30% baseline. You will ALWAYS hear nodes.
+    const prob = 0.3 + (currentRatios.grey * 0.6);
+    
+    if (Math.random() < prob) {
+        // We pick from high or mid scales based on urban density
+        const activeScale = currentRatios.blue > 0.6 ? SCALES.mid : SCALES.high;
+        const note = activeScale[Math.floor(Math.random() * activeScale.length)];
+        
+        // Trigger with a strong velocity (0.8) to pierce the noise
+        chimePoly.triggerAttackRelease(note, "32n", time, 0.8);
     }
+}, "8n").start(0); // 8th note grid is easier to hear than 16th when slow
 
     startBtn.onclick = async () => {
         try {
